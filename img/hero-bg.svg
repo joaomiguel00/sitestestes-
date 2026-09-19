@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#12294c"/>
+      <stop offset="100%" stop-color="#0b1f3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+
+  <!-- Colunas estilizadas -->
+  <g fill="#1c3a63">
+    <rect x="120" y="260" width="40" height="420"/>
+    <rect x="260" y="260" width="40" height="420"/>
+    <rect x="400" y="260" width="40" height="420"/>
+    <rect x="760" y="260" width="40" height="420"/>
+    <rect x="900" y="260" width="40" height="420"/>
+    <rect x="1040" y="260" width="40" height="420"/>
+    <rect x="80" y="220" width="1040" height="40"/>
+    <rect x="60" y="680" width="1080" height="30"/>
+  </g>
+
+  <!-- Balança da justiça -->
+  <g stroke="#c9a24b" stroke-width="6" fill="none" stroke-linecap="round">
+    <line x1="600" y1="160" x2="600" y2="420"/>
+    <line x1="470" y1="210" x2="730" y2="210"/>
+    <line x1="470" y1="210" x2="430" y2="300"/>
+    <line x1="470" y1="210" x2="510" y2="300"/>
+    <line x1="730" y1="210" x2="690" y2="300"/>
+    <line x1="730" y1="210" x2="770" y2="300"/>
+  </g>
+  <g fill="none" stroke="#c9a24b" stroke-width="6">
+    <path d="M430 300 A40 26 0 0 0 510 300"/>
+    <path d="M690 300 A40 26 0 0 0 770 300"/>
+  </g>
+  <circle cx="600" cy="150" r="14" fill="#c9a24b"/>
+  <rect x="560" y="410" width="80" height="18" fill="#c9a24b"/>
+  <rect x="580" y="420" width="40" height="60" fill="#c9a24b"/>
+</svg>

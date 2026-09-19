@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contato | Almeida &amp; Souza Advogados</title>
+  <meta name="description" content="Entre em contato com o escritório Almeida & Souza Advogados (site de teste)." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <div class="aviso-teste">Este é um site de teste — conteúdo fictício, sem finalidade comercial real.</div>
+
+  <header class="site-header">
+    <nav class="navbar">
+      <a href="index.html" class="logo">Almeida <span>&amp;</span> Souza</a>
+      <ul class="nav-links">
+        <li><a href="index.html">Início</a></li>
+        <li><a href="sobre.html">Sobre</a></li>
+        <li><a href="areas-de-atuacao.html">Áreas de Atuação</a></li>
+        <li><a href="contato.html" class="ativo">Contato</a></li>
+      </ul>
+      <button class="nav-toggle" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" style="padding: 90px 24px;">
+      <h1>Entre em Contato</h1>
+      <p>Estamos prontos para ouvir seu caso e ajudar você.</p>
+    </section>
+
+    <section>
+      <div class="container">
+        <div class="info-contato">
+          <div class="cartao">
+            <h3>Telefone</h3>
+            <p>(11) 4000-0000</p>
+          </div>
+          <div class="cartao">
+            <h3>E-mail</h3>
+            <p>contato@almeidasouza.exemplo</p>
+          </div>
+          <div class="cartao">
+            <h3>Endereço</h3>
+            <p>Av. Exemplo, 123 — São Paulo/SP</p>
+          </div>
+          <div class="cartao">
+            <h3>Horário</h3>
+            <p>Seg. a Sex., 9h às 18h</p>
+          </div>
+        </div>
+
+        <div class="section-titulo">
+          <h2>Envie uma mensagem</h2>
+          <div class="linha"></div>
+        </div>
+
+        <form class="form-contato">
+          <div>
+            <label for="nome">Nome completo</label>
+            <input type="text" id="nome" name="nome" required />
+          </div>
+          <div>
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" required />
+          </div>
+          <div>
+            <label for="telefone">Telefone</label>
+            <input type="tel" id="telefone" name="telefone" />
+          </div>
+          <div>
+            <label for="mensagem">Mensagem</label>
+            <textarea id="mensagem" name="mensagem" required></textarea>
+          </div>
+          <button type="submit" class="btn">Enviar mensagem</button>
+          <p class="aviso-envio"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="bg-claro">
+      <div class="container">
+        <div class="section-titulo">
+          <h2>Nossa Localização</h2>
+          <div class="linha"></div>
+        </div>
+        <iframe
+          class="mapa"
+          src="https://www.openstreetmap.org/export/embed.html?bbox=-46.6600%2C-23.5650%2C-46.6300%2C-23.5450&layer=mapnik"
+          title="Mapa de localização (aproximada, ilustrativa)"
+          loading="lazy">
+        </iframe>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-colunas">
+      <div>
+        <h4>Almeida &amp; Souza</h4>
+        <p>Escritório de advocacia fictício, criado apenas como site de teste/demonstração.</p>
+      </div>
+      <div>
+        <h4>Links</h4>
+        <ul>
+          <li><a href="index.html">Início</a></li>
+          <li><a href="sobre.html">Sobre</a></li>
+          <li><a href="areas-de-atuacao.html">Áreas de Atuação</a></li>
+          <li><a href="contato.html">Contato</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Contato</h4>
+        <ul>
+          <li>(11) 4000-0000</li>
+          <li>contato@almeidasouza.exemplo</li>
+          <li>Av. Exemplo, 123 — São Paulo/SP</li>
+        </ul>
+      </div>
+    </div>
+    <div class="container footer-base">
+      &copy; 2026 Almeida &amp; Souza Advogados. Site de teste — todos os dados são fictícios.
+    </div>
+  </footer>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
