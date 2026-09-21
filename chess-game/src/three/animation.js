@@ -41,6 +41,21 @@ export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 
 export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 export const easeIn = (t) => t * t * t;
 
+// Suaviza qualquer trecho [0..1] com derivada nula nas pontas (sem "quinas"
+// no tempo, ou seja, começa e termina sem solavanco).
+export const smoothStep = (t) => t * t * (3 - 2 * t);
+
+// Saída com leve ultrapassagem (overshoot): a peça passa um pouco do alvo
+// e assenta. Dá vida ao pouso do movimento sem parecer elástico demais.
+export function easeOutBack(t, overshoot = 1.2) {
+  const c = overshoot;
+  const p = t - 1;
+  return 1 + (c + 1) * p * p * p + c * p * p;
+}
+
+// Interpolação linear escalar utilitária.
+export const lerp = (a, b, t) => a + (b - a) * t;
+
 // Direção horizontal normalizada de a para b.
 export function horizontalDir(a, b) {
   const dir = new THREE.Vector3(b.x - a.x, 0, b.z - a.z);

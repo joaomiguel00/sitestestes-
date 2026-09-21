@@ -51,7 +51,7 @@ function showStartMenu() {
           </button>
           <button class="btn btn-secondary" id="btn-custom">
             <strong>Montagem Customizada</strong>
-            <span>Cada exército se posiciona em segredo, em até 3 fileiras</span>
+            <span>Escolha sua cor e posicione o exército em segredo, em até 3 fileiras</span>
           </button>
         </div>
         <button class="btn btn-ghost btn-wide" id="btn-options">Opções</button>
@@ -162,12 +162,53 @@ function showOptions(onBack) {
 /* ------------------------------------------------- montagem customizada */
 
 function startCustomFlow() {
-  customBoards = { [WHITE]: null, [BLACK]: null };
-  showHandoff(WHITE, 'Monte seu exército em segredo. Ninguém mais deve ver a tela.', () =>
-    showSetupScreen(WHITE, () => showHandoff(BLACK, 'É a sua vez de montar em segredo.', () =>
-      showSetupScreen(BLACK, tryReveal),
-    )),
-  );
+  showColorPick((firstColor) => {
+    customBoards = { [WHITE]: null, [BLACK]: null };
+    const secondColor = firstColor === WHITE ? BLACK : WHITE;
+    showHandoff(
+      firstColor,
+      'Monte seu exército em segredo. Ninguém mais deve ver a tela.',
+      () =>
+        showSetupScreen(firstColor, () =>
+          showHandoff(secondColor, 'É a sua vez de escolher a posição e montar em segredo.', () =>
+            showSetupScreen(secondColor, tryReveal),
+          ),
+        ),
+    );
+  });
+}
+
+// Jogador 1 escolhe o exército que vai comandar. As Brancas sempre jogam
+// primeiro (regra do xadrez), então quem pega as Pretas move em segundo.
+function showColorPick(onPick) {
+  destroyMatch();
+  resetUI();
+  uiRoot.innerHTML = `
+    <div class="screen intro-screen">
+      <div class="start-card">
+        <p class="eyebrow">Jogador 1 · escolha seu exército</p>
+        <h2>Qual cor você comanda?</h2>
+        <p class="subtitle">
+          Depois cada jogador posiciona as próprias peças em segredo.
+          As Brancas jogam o primeiro lance.
+        </p>
+        <div class="menu-buttons color-pick">
+          <button class="btn btn-primary" id="btn-pick-white">
+            <strong>Ordem (Brancas)</strong>
+            <span>Você move primeiro</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-pick-black">
+            <strong>Ruína (Pretas)</strong>
+            <span>Você move em segundo</span>
+          </button>
+        </div>
+        <button class="btn btn-ghost btn-wide" id="btn-cancel">Voltar</button>
+      </div>
+    </div>
+  `;
+  uiRoot.querySelector('#btn-pick-white').onclick = () => onPick(WHITE);
+  uiRoot.querySelector('#btn-pick-black').onclick = () => onPick(BLACK);
+  uiRoot.querySelector('#btn-cancel').onclick = showStartMenu;
 }
 
 function showHandoff(color, message, onReady) {

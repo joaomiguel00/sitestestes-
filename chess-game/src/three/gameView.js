@@ -11,7 +11,7 @@ import { createSpecialFx } from './specialFx.js';
 import { createReplay, scoreMoment, pickHighlights } from './replay.js';
 import { applyIdleMotion, idlePhase } from './idleMotion.js';
 import { applyVeteranMark } from './pieceModels.js';
-import { animate, easeInOut } from './animation.js';
+import { animate, easeInOut, easeOutBack } from './animation.js';
 import { cloneBoard, findKing } from '../chess/moveGen.js';
 import { STATUS } from '../chess/game.js';
 import { audio } from '../audio/index.js';
@@ -482,13 +482,16 @@ export class GameView {
     this.callbacks.onReplayEnd?.();
   }
 
-  _animateSlide(mesh, target, duration = 340) {
+  _animateSlide(mesh, target, duration = 360) {
     const start = mesh.position.clone();
     return animate(duration, (t) => {
-      const e = easeInOut(t);
+      // Deslocamento horizontal com leve ultrapassagem no fim: a peça
+      // assenta na casa em vez de parar de forma seca.
+      const e = easeOutBack(easeInOut(t), 0.9);
       mesh.position.x = start.x + (target.x - start.x) * e;
       mesh.position.z = start.z + (target.z - start.z) * e;
-      mesh.position.y = Math.sin(Math.PI * t) * 0.3;
+      // Arco de salto suavizado (nasce e morre sem solavanco).
+      mesh.position.y = Math.sin(Math.PI * easeInOut(t)) * 0.3;
     }).then(() => {
       mesh.position.set(target.x, 0, target.z);
     });
