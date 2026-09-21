@@ -1,60 +1,117 @@
 import * as THREE from 'three';
 import { WHITE } from '../chess/moveGen.js';
 
-// Peças low poly: pedra escura facetada + ferragens de bronze.
-// A diferença entre os exércitos é a cor do brilho arcano
-// (âmbar para a Ordem, magenta para a Ruína).
+// Estilo único das duas facções, seguindo a arte de referência:
+// obsidiana preta fosca e facetada, rachaduras de energia interna,
+// ferragens de metal envelhecido com rebites e pedestal octogonal de pedra.
+// Os exércitos diferem só na pedra e na cor da energia — a Ruína queima em
+// vermelho-alaranjado; a Ordem, num azul gélido.
 function createMaterials(color) {
   const isOrder = color === WHITE;
+
+  const stone = new THREE.MeshStandardMaterial({
+    color: isOrder ? 0x8f8c86 : 0x14121a,
+    roughness: isOrder ? 0.82 : 0.92,
+    metalness: 0.06,
+    flatShading: true,
+  });
+
+  // Ferragem: bronze dourado envelhecido, igual nos dois lados.
+  const gold = new THREE.MeshStandardMaterial({
+    color: isOrder ? 0xc2a25c : 0x9a7c3e,
+    roughness: 0.36,
+    metalness: 0.95,
+    flatShading: true,
+  });
+
+  const energyColor = isOrder ? 0x1e9bff : 0xff4a14;
+  const energy = new THREE.MeshStandardMaterial({
+    color: energyColor,
+    emissive: energyColor,
+    emissiveIntensity: isOrder ? 1.5 : 2.6,
+    roughness: 0.3,
+    metalness: 0.05,
+    flatShading: true,
+  });
+
   return {
-    stone: new THREE.MeshStandardMaterial({
-      color: isOrder ? 0x7c7a76 : 0x1f1d26,
-      roughness: 0.82,
-      metalness: 0.15,
-      flatShading: true,
-    }),
-    trim: new THREE.MeshStandardMaterial({
-      color: isOrder ? 0xd9b45c : 0x8a7442,
-      roughness: 0.34,
-      metalness: 0.95,
-      flatShading: true,
-    }),
-    glow: new THREE.MeshStandardMaterial({
-      color: isOrder ? 0xff8c33 : 0xd946ef,
-      emissive: isOrder ? 0xff6a12 : 0xc026d3,
-      emissiveIntensity: 2.4,
-      roughness: 0.3,
-      metalness: 0.1,
-      flatShading: true,
-    }),
+    stone,
+    gold,
+    energy,
     // Casca translúcida de "chama" em volta dos cristais.
     aura: new THREE.MeshBasicMaterial({
-      color: isOrder ? 0xff9f4d : 0xf05bff,
+      color: isOrder ? 0x9fe8ff : 0xff7a3d,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.3,
       depthWrite: false,
       flatShading: true,
     }),
+    // Nomes antigos, ainda usados pelas peças não reconstruídas.
+    trim: gold,
+    glow: energy,
   };
 }
 
-const BASE_TOP = 0.12;
+const BASE_TOP = 0.15;
 
 // As peças são modeladas em escala "unitária" e depois ampliadas,
 // para ficarem esguias em relação à casa de 1 unidade do tabuleiro.
 const PIECE_SCALE = 1.25;
 
-function buildPedestal(mats) {
+// Rebites: esferinhas de metal distribuídas num anel.
+function addRivets(group, mats, { radius, y, count = 8, size = 0.014, offset = 0 }) {
+  const geometry = new THREE.IcosahedronGeometry(size, 0);
+  for (let i = 0; i < count; i++) {
+    const angle = offset + (i / count) * Math.PI * 2;
+    const rivet = new THREE.Mesh(geometry, mats.gold);
+    rivet.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    group.add(rivet);
+  }
+}
+
+// Rachaduras: lascas finas de energia encravadas na pedra, inclinadas ao
+// acaso para lembrarem fissuras em vez de listras.
+function addCracks(group, mats, { radius, yMin, yMax, count = 4, length = 0.12, seed = 0 }) {
+  for (let i = 0; i < count; i++) {
+    const angle = seed + (i / count) * Math.PI * 2 + Math.sin(i * 7.3) * 0.5;
+    const y = yMin + ((yMax - yMin) * (i + 0.5)) / count;
+    const crack = new THREE.Mesh(
+      new THREE.BoxGeometry(0.009, length * (0.7 + ((i * 37) % 10) / 20), 0.022),
+      mats.energy,
+    );
+    crack.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    crack.rotation.set(Math.sin(i * 3.1) * 0.5, -angle, Math.cos(i * 2.7) * 0.6);
+    group.add(crack);
+  }
+}
+
+// Pedestal octogonal de pedra escura, em dois degraus, com faixa dourada
+// e rebites nas quinas — o mesmo em todas as peças.
+function buildPedestal(mats, { radius = 0.27 } = {}) {
   const group = new THREE.Group();
 
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, BASE_TOP, 8), mats.stone);
-  base.position.y = BASE_TOP / 2;
-  group.add(base);
+  const lower = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 1.12, radius * 1.2, 0.06, 8),
+    mats.stone,
+  );
+  lower.position.y = 0.03;
+  group.add(lower);
 
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.02, 5, 8), mats.glow);
-  ring.rotation.x = Math.PI / 2;
-  ring.position.y = BASE_TOP * 0.55;
-  group.add(ring);
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 1.08, radius * 1.08, 0.022, 8),
+    mats.gold,
+  );
+  band.position.y = 0.071;
+  group.add(band);
+
+  const upper = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius * 1.05, 0.068, 8),
+    mats.stone,
+  );
+  upper.position.y = 0.116;
+  group.add(upper);
+
+  addRivets(group, mats, { radius: radius * 0.99, y: 0.135, count: 8, size: 0.013 });
 
   return group;
 }
@@ -101,37 +158,117 @@ function buildCrown(mats, radius, y, spikes, spikeHeight, bigCenter) {
   return group;
 }
 
-// Peão: soldado baixo, com elmo simples e escudo redondo.
+// Peão: soldado de infantaria — a peça mais simples, porque é a mais
+// numerosa. Elmo angular com crista, ombreiras, cinto rebitado e escudo
+// redondo de bronze ao lado.
 function buildPawn(mats) {
   const group = new THREE.Group();
-  group.add(buildPedestal(mats));
+  group.add(buildPedestal(mats, { radius: 0.25 }));
 
-  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.19, 0.16, 6), mats.stone);
-  legs.position.y = BASE_TOP + 0.09;
+  // Pernas e saiote de placas.
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.185, 0.17, 6), mats.stone);
+  legs.position.y = BASE_TOP + 0.085;
   group.add(legs);
 
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.15, 0.3, 6), mats.stone);
-  torso.position.y = BASE_TOP + 0.33;
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.135, 0.09, 6), mats.stone);
+  skirt.position.y = BASE_TOP + 0.21;
+  group.add(skirt);
+
+  // Cinto de metal com rebites.
+  const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.042, 6), mats.gold);
+  belt.position.y = BASE_TOP + 0.265;
+  group.add(belt);
+  addRivets(group, mats, { radius: 0.158, y: BASE_TOP + 0.265, count: 6, size: 0.016 });
+
+  // Tronco: peito levemente mais largo que a cintura.
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.145, 0.27, 6), mats.stone);
+  torso.position.y = BASE_TOP + 0.42;
   group.add(torso);
 
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.022, 5, 8), mats.trim);
-  belt.rotation.x = Math.PI / 2;
-  belt.position.y = BASE_TOP + 0.19;
-  group.add(belt);
+  const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.13, 0.05), mats.stone);
+  chestPlate.position.set(0, BASE_TOP + 0.45, 0.14);
+  group.add(chestPlate);
 
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.115, 0), mats.stone);
-  head.position.y = BASE_TOP + 0.57;
-  group.add(head);
+  // Ombreiras angulares.
+  for (const side of [-1, 1]) {
+    const pauldron = new THREE.Mesh(new THREE.OctahedronGeometry(0.085, 0), mats.stone);
+    pauldron.position.set(side * 0.16, BASE_TOP + 0.53, 0);
+    pauldron.scale.set(1, 0.7, 1);
+    group.add(pauldron);
 
-  const crest = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), mats.trim);
-  crest.position.y = BASE_TOP + 0.71;
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.028, 0.14), mats.gold);
+    strap.position.set(side * 0.155, BASE_TOP + 0.565, 0);
+    group.add(strap);
+  }
+
+  // Elmo coríntio: calota baixa, viseira dourada e crista de frente a trás.
+  const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.115, 0.13, 6), mats.stone);
+  helm.position.y = BASE_TOP + 0.64;
+  group.add(helm);
+
+  const helmDome = new THREE.Mesh(new THREE.SphereGeometry(0.105, 6, 4), mats.stone);
+  helmDome.position.y = BASE_TOP + 0.7;
+  helmDome.scale.y = 0.55;
+  group.add(helmDome);
+
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.06), mats.gold);
+  visor.position.set(0, BASE_TOP + 0.638, 0.08);
+  group.add(visor);
+
+  const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.07, 0.03), mats.gold);
+  cheek.position.set(0, BASE_TOP + 0.585, 0.09);
+  group.add(cheek);
+
+  // Crista: lâmina fina correndo pelo alto do elmo.
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.075, 0.2), mats.gold);
+  crest.position.set(0, BASE_TOP + 0.775, -0.01);
   group.add(crest);
 
-  const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.035, 8), mats.trim);
-  shield.rotation.z = Math.PI / 2;
-  shield.position.set(0.18, BASE_TOP + 0.33, 0.05);
+  const crestTip = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.09, 4), mats.gold);
+  crestTip.position.set(0, BASE_TOP + 0.8, 0.095);
+  crestTip.rotation.x = 0.9;
+  group.add(crestTip);
+
+  // Olhos acesos na fresta da viseira.
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.014, 0.012), mats.energy);
+    eye.position.set(side * 0.038, BASE_TOP + 0.638, 0.113);
+    group.add(eye);
+  }
+
+  // Escudo redondo, de frente para o inimigo, preso ao braço esquerdo.
+  const shield = new THREE.Group();
   shield.userData.part = 'shield';
+
+  const shieldFace = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.035, 8), mats.stone);
+  shield.add(shieldFace);
+
+  const shieldRim = new THREE.Mesh(new THREE.TorusGeometry(0.142, 0.024, 4, 8), mats.gold);
+  shieldRim.rotation.x = Math.PI / 2;
+  shield.add(shieldRim);
+
+  const boss = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), mats.gold);
+  boss.position.y = 0.03;
+  boss.scale.y = 0.7;
+  shield.add(boss);
+
+  addRivets(shield, mats, { radius: 0.105, y: 0.025, count: 6, size: 0.014 });
+
+  // Eixo do disco apontando para a frente: o rosto do escudo encara o +Z.
+  shield.rotation.x = Math.PI / 2;
+  shield.rotation.z = -0.1;
+  shield.position.set(0.185, BASE_TOP + 0.42, 0.12);
   group.add(shield);
+
+  // Rachaduras encravadas na pedra (raio um pouco menor que o corpo).
+  addCracks(group, mats, {
+    radius: 0.142,
+    yMin: BASE_TOP + 0.14,
+    yMax: BASE_TOP + 0.5,
+    count: 5,
+    length: 0.13,
+    seed: 1.1,
+  });
 
   return group;
 }
