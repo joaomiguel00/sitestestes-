@@ -3,8 +3,8 @@
 
   "attack_p": "",
   "attack_r": "",
-  "attack_n": "attack-knight.mp3",
-  "attack_b": "attack-bishop.mp3",
+  "attack_n": "attack-knight.wav",
+  "attack_b": "attack-bishop.wav",
   "attack_q": "",
   "attack_k": "",
 
