@@ -8,12 +8,12 @@
   "attack_q": "",
   "attack_k": "",
 
-  "death_p": "",
-  "death_r": "",
-  "death_n": "",
-  "death_b": "",
-  "death_q": "",
-  "death_k": "",
+  "death_p": "death-hit.wav",
+  "death_r": "death-hit.wav",
+  "death_n": "death-hit.wav",
+  "death_b": "death-hit.wav",
+  "death_q": "death-hit.wav",
+  "death_k": "death-hit.wav",
 
   "step_p": "",
   "step_r": "",
