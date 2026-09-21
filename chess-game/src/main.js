@@ -42,7 +42,7 @@ function showStartMenu() {
     <div class="screen start-screen">
       <div class="start-card">
         <p class="eyebrow">Tabuleiro de sombras</p>
-        <h1 class="title">Xadrez Sombrio</h1>
+        <h1 class="title">War of Chess</h1>
         <p class="subtitle">Dois jogadores, um dispositivo. Escolha como a batalha começa.</p>
         <div class="menu-buttons">
           <button class="btn btn-primary" id="btn-standard">

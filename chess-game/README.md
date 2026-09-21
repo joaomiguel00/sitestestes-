@@ -1,4 +1,4 @@
-# Xadrez Sombrio
+# War of Chess
 
 Xadrez 3D no navegador com visual dark fantasy low poly, para dois jogadores no
 mesmo dispositivo (hot-seat). Feito com **Three.js + Vite**, sem framework de UI.
