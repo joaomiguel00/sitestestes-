@@ -5,9 +5,14 @@ import { createPieceMesh } from './pieceModels.js';
 import { createCameraRig } from './cameraRig.js';
 import { createDecalLayer } from './decals.js';
 import { createCombat } from './combat.js';
+import { createEnvironment } from './environment.js';
 import { animate, easeInOut } from './animation.js';
 import { findKing } from '../chess/moveGen.js';
 import { STATUS } from '../chess/game.js';
+import { audio } from '../audio/index.js';
+
+// A partir de quantas capturas o campo de batalha chega ao clima mais sombrio.
+const MOOD_FULL_AT = 16;
 
 const key = (row, col) => `${row},${col}`;
 
@@ -30,7 +35,8 @@ export class GameView {
     this.highlights = createHighlightLayer(this.scene);
     this.cameraRig = createCameraRig(this.camera, this.controls);
     this.decals = createDecalLayer(this.scene);
-    this.combat = createCombat({ scene: this.scene, decals: this.decals });
+    this.combat = createCombat({ scene: this.scene, decals: this.decals, audio });
+    this.environment = createEnvironment({ scene: this.scene, lights: scene.lights });
 
     this.pieceGroup = new THREE.Group();
     this.scene.add(this.pieceGroup);
@@ -48,16 +54,28 @@ export class GameView {
 
     this._buildPieces();
     this._renderHighlights();
+    this._updateMood();
 
+    this._lastFrame = performance.now();
     this._loop = this._loop.bind(this);
     requestAnimationFrame(this._loop);
   }
 
-  _loop() {
+  _loop(now = performance.now()) {
     if (this.disposed) return;
+    const dt = Math.min(0.05, (now - this._lastFrame) / 1000);
+    this._lastFrame = now;
+    this.environment.update(dt);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this._loop);
+  }
+
+  // O clima acompanha o número de peças já tiradas do tabuleiro.
+  _updateMood() {
+    const captured = this.game.captured.w.length + this.game.captured.b.length;
+    this.environment.setProgress(captured / MOOD_FULL_AT);
+    audio.setMood(this.environment.progress, this.environment.rainLevel);
   }
 
   _buildPieces() {
@@ -230,6 +248,7 @@ export class GameView {
         }),
       );
     } else {
+      audio.playStep(movingPiece.type);
       animations.push(this._animateSlide(mesh, squareToWorld(move.to.row, move.to.col)));
     }
 
@@ -260,17 +279,22 @@ export class GameView {
     }
 
     this._renderHighlights();
+    this._updateMood();
+
+    if (this.game.status === STATUS.CHECK) audio.playUi('check');
 
     // No xeque-mate o rei não é capturado: ele se ajoelha e fica no tabuleiro.
     if (this.game.status === STATUS.CHECKMATE) {
       const king = findKing(this.game.board, this.game.turn);
       if (king) {
+        audio.playDeath('k');
         await this.combat.playKingFall({
           mesh: this.pieces.get(key(king.row, king.col)),
           position: squareToWorld(king.row, king.col),
           attackerPos: squareToWorld(move.to.row, move.to.col),
         });
       }
+      audio.playUi('victory');
     }
 
     this.callbacks.onStatusChange?.(this.game);
@@ -303,6 +327,7 @@ export class GameView {
     this.renderer.domElement.removeEventListener('pointerdown', this._onClick);
     this.combat.dispose();
     this.decals.clear();
+    this.environment.dispose();
     this._disposeScene();
   }
 }

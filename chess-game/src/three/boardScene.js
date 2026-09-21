@@ -38,8 +38,11 @@ export function createBoardScene(container) {
   controls.maxPolarAngle = Math.PI * 0.48;
   controls.update();
 
-  scene.add(new THREE.AmbientLight(0x6b6878, 1.05));
-  scene.add(new THREE.HemisphereLight(0x8e8ca6, 0x2a1d16, 0.85));
+  const ambientLight = new THREE.AmbientLight(0x6b6878, 1.05);
+  scene.add(ambientLight);
+
+  const hemiLight = new THREE.HemisphereLight(0x8e8ca6, 0x2a1d16, 0.85);
+  scene.add(hemiLight);
 
   const keyLight = new THREE.DirectionalLight(0xffd7ab, 2.6);
   keyLight.position.set(5, 9, 4);
@@ -132,5 +135,14 @@ export function createBoardScene(container) {
     }
   }
 
-  return { scene, camera, renderer, controls, boardGroup, tiles, onResize, dispose };
+  const lights = {
+    ambient: ambientLight,
+    hemi: hemiLight,
+    key: keyLight,
+    fill: fillLight,
+    magentaRim,
+    emberRim,
+  };
+
+  return { scene, camera, renderer, controls, boardGroup, tiles, lights, onResize, dispose };
 }

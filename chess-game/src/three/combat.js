@@ -639,7 +639,7 @@ const DEATHS = {
 
 /* ---------------------------------------------------------- orquestração */
 
-export function createCombat({ scene, decals }) {
+export function createCombat({ scene, decals, audio }) {
   const fx = new THREE.Group();
   scene.add(fx);
 
@@ -660,6 +660,7 @@ export function createCombat({ scene, decals }) {
     let death = Promise.resolve();
 
     const runDeath = () => {
+      audio?.playDeath(victimType);
       death = DEATHS[victimType]({
         mesh: victim,
         fx,
@@ -679,6 +680,7 @@ export function createCombat({ scene, decals }) {
       });
     };
 
+    audio?.playAttack(attackerType);
     await ATTACKS[attackerType]({
       mesh: attacker,
       from,

@@ -3,6 +3,9 @@ const STORAGE_KEY = 'xadrez-sombrio:settings';
 const defaults = {
   // Sangue e destroços persistentes no tabuleiro.
   gore: true,
+  // Volume geral (0 a 1) e mudo.
+  volume: 0.7,
+  muted: false,
 };
 
 function load() {

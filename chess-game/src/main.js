@@ -5,6 +5,7 @@ import { mergeBoards, kingIsInCheck } from './chess/setup.js';
 import { GameView } from './three/gameView.js';
 import { renderSetupUI } from './ui/setupUI.js';
 import { settings, setSetting } from './settings.js';
+import { audio } from './audio/index.js';
 import { createCaptureTester } from './debug.js';
 
 const uiRoot = document.getElementById('ui-root');
@@ -27,6 +28,7 @@ function destroyMatch() {
   if (gameView) {
     gameView.dispose();
     gameView = null;
+    audio.stopMusic();
   }
   canvasContainer.style.display = 'none';
 }
@@ -60,6 +62,22 @@ function showStartMenu() {
             <em>Marcas de captura que ficam no tabuleiro até o fim da partida</em>
           </span>
         </label>
+        <div class="option-volume">
+          <button class="volume-button" id="btn-mute" type="button" aria-pressed="${settings.muted}">
+            ${settings.muted ? '🔇' : '🔊'}
+          </button>
+          <label class="option-text" for="opt-volume">
+            <strong>Volume</strong>
+            <em id="volume-label">${settings.muted ? 'Mudo' : `${Math.round(settings.volume * 100)}%`}</em>
+          </label>
+          <input
+            type="range"
+            id="opt-volume"
+            min="0"
+            max="100"
+            value="${Math.round(settings.volume * 100)}"
+          />
+        </div>
       </div>
     </div>
   `;
@@ -68,6 +86,31 @@ function showStartMenu() {
   uiRoot.querySelector('#btn-custom').onclick = startCustomFlow;
   uiRoot.querySelector('#opt-gore').onchange = (event) => {
     setSetting('gore', event.target.checked);
+  };
+
+  const volumeSlider = uiRoot.querySelector('#opt-volume');
+  const volumeLabel = uiRoot.querySelector('#volume-label');
+  const muteButton = uiRoot.querySelector('#btn-mute');
+
+  function refreshVolumeUI() {
+    muteButton.textContent = settings.muted ? '🔇' : '🔊';
+    muteButton.setAttribute('aria-pressed', String(settings.muted));
+    volumeLabel.textContent = settings.muted ? 'Mudo' : `${Math.round(settings.volume * 100)}%`;
+  }
+
+  volumeSlider.oninput = (event) => {
+    audio.unlock();
+    audio.setVolume(Number(event.target.value) / 100);
+    if (settings.muted && settings.volume > 0) audio.setMuted(false);
+    refreshVolumeUI();
+    audio.playUi('click');
+  };
+
+  muteButton.onclick = () => {
+    audio.unlock();
+    audio.setMuted(!settings.muted);
+    refreshVolumeUI();
+    if (!settings.muted) audio.playUi('click');
   };
 }
 
@@ -155,6 +198,8 @@ async function launchMatch(board, withReveal) {
   resetUI({ interactive: false });
   canvasContainer.style.display = 'block';
 
+  audio.startMusic();
+
   const game = new ChessGame(board);
   gameView = new GameView(canvasContainer, game, {
     onStatusChange: handleStatusChange,
@@ -167,7 +212,7 @@ async function launchMatch(board, withReveal) {
   if (withReveal) await gameView.playRevealAnimation();
 
   // Expõe o estado para depuração no console do navegador.
-  window.xadrez = { game, gameView, testarCaptura: createCaptureTester(() => window.xadrez) };
+  window.xadrez = { game, gameView, audio, testarCaptura: createCaptureTester(() => window.xadrez) };
 }
 
 function renderHUD(game) {
@@ -176,6 +221,7 @@ function renderHUD(game) {
   hud.innerHTML = `
     <div class="hud-turn" id="hud-turn"></div>
     <div class="hud-check" id="hud-check">Xeque!</div>
+    <button class="volume-button" id="hud-mute" type="button" title="Ligar/desligar som"></button>
     <button class="btn btn-ghost btn-small" id="hud-menu">Menu</button>
   `;
   uiRoot.appendChild(hud);
@@ -185,6 +231,13 @@ function renderHUD(game) {
   controls.textContent =
     'Arraste para orbitar · scroll para zoom · clique numa peça para ver os lances';
   uiRoot.appendChild(controls);
+
+  const muteButton = hud.querySelector('#hud-mute');
+  muteButton.textContent = settings.muted ? '🔇' : '🔊';
+  muteButton.onclick = () => {
+    audio.setMuted(!settings.muted);
+    muteButton.textContent = settings.muted ? '🔇' : '🔊';
+  };
 
   hud.querySelector('#hud-menu').onclick = showStartMenu;
   updateHUD(game);
@@ -256,5 +309,7 @@ function askPromotion() {
     });
   });
 }
+
+document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 
 showStartMenu();
