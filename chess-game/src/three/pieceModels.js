@@ -80,7 +80,9 @@ function addCracks(group, mats, { radius, yMin, yMax, count = 4, length = 0.12, 
       mats.energy,
     );
     crack.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
-    crack.rotation.set(Math.sin(i * 3.1) * 0.5, -angle, Math.cos(i * 2.7) * 0.6);
+    // Gira para acompanhar a tangente da superfície, com só uma leve
+    // inclinação — sem isso a lasca aponta para fora e parece flutuar.
+    crack.rotation.set(Math.sin(i * 3.1) * 0.18, -angle, Math.cos(i * 2.7) * 0.18);
     group.add(crack);
   }
 }
@@ -360,78 +362,122 @@ function buildKnight(mats) {
   return group;
 }
 
-// Bispo: figura encapuzada, manto com debrum dourado e cajado de cristal.
+// Bispo: figura encapuzada e esguia — corpo/armadura, capa longa, capuz e
+// cajado com gema formam as mesmas 5 partes do plano de referência (mais o
+// pedestal octogonal comum a todas as peças). A silhueta é quebrada em
+// segmentos de raios bem diferentes (saia larga, cintura estreita, torso
+// e colar), do mesmo jeito que funcionou no peão — um cone único e liso
+// engole os acabamentos finos e lê como um triângulo vazio à distância.
 function buildBishop(mats) {
   const group = new THREE.Group();
   group.add(buildPedestal(mats));
 
-  const robe = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.74, 7), mats.stone);
-  robe.position.y = BASE_TOP + 0.37;
-  group.add(robe);
+  // Saia do robe: alargada embaixo, afunila até a cintura.
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.215, 0.34, 7), mats.stone);
+  skirt.position.y = BASE_TOP + 0.17;
+  group.add(skirt);
 
-  // Debrum dourado descendo pela frente do manto.
-  const hem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.02), mats.trim);
-  hem.position.set(0.035, BASE_TOP + 0.4, 0.15);
-  hem.rotation.x = -0.08;
+  // Cinto rebitado, nitidamente mais largo que a cintura do robe.
+  const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.04, 7), mats.gold);
+  belt.position.y = BASE_TOP + 0.35;
+  group.add(belt);
+  addRivets(group, mats, { radius: 0.173, y: BASE_TOP + 0.35, count: 7, size: 0.013 });
+
+  // Debrum dourado colado na saia, descendo até a bainha.
+  const hem = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.28, 0.02), mats.gold);
+  hem.position.set(0, BASE_TOP + 0.2, 0.175);
+  hem.rotation.x = -0.16;
   group.add(hem);
 
-  const border = new THREE.Mesh(new THREE.TorusGeometry(0.195, 0.02, 4, 8), mats.trim);
-  border.rotation.x = Math.PI / 2;
-  border.position.y = BASE_TOP + 0.06;
-  group.add(border);
+  // Torso: cilindro mais estreito que a saia, cria a "cintura" visível.
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.145, 0.24, 7), mats.stone);
+  torso.position.y = BASE_TOP + 0.49;
+  group.add(torso);
 
-  // Capa curta sobre os ombros.
-  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.24, 7, 1, true), mats.stone);
+  // Capa longa: manto bem mais largo que o torso, flui atrás até o chão.
+  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.66, 7, 1, true), mats.stone);
   cape.material.side = THREE.DoubleSide;
-  cape.position.y = BASE_TOP + 0.66;
+  cape.position.set(0, BASE_TOP + 0.3, -0.09);
   group.add(cape);
 
-  const capeTrim = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.022, 4, 8), mats.trim);
-  capeTrim.rotation.x = Math.PI / 2;
-  capeTrim.position.y = BASE_TOP + 0.56;
-  group.add(capeTrim);
+  const capeHem = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.02, 4, 7), mats.gold);
+  capeHem.rotation.x = Math.PI / 2;
+  capeHem.position.set(0, BASE_TOP + 0.01, -0.09);
+  group.add(capeHem);
+  addRivets(group, mats, {
+    radius: 0.255,
+    y: BASE_TOP + 0.01,
+    count: 7,
+    size: 0.012,
+    offset: 0.3,
+  });
 
-  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 6), mats.stone);
-  hood.position.y = BASE_TOP + 0.89;
+  // Colar/gola: anel dourado visivelmente mais largo que o topo do torso.
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.026, 4, 8), mats.gold);
+  collar.rotation.x = Math.PI / 2;
+  collar.position.y = BASE_TOP + 0.62;
+  group.add(collar);
+
+  // Capuz pontiagudo, com um brilho no vazio onde estaria o rosto.
+  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.28, 6), mats.stone);
+  hood.position.y = BASE_TOP + 0.76;
   group.add(hood);
 
-  // Vazio sob o capuz, com um brilho onde estaria o rosto.
-  const face = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), mats.glow);
-  face.position.set(0, BASE_TOP + 0.83, 0.075);
+  const face = new THREE.Mesh(new THREE.OctahedronGeometry(0.038, 0), mats.energy);
+  face.position.set(0, BASE_TOP + 0.68, 0.07);
   group.add(face);
 
-  // O cajado inteiro é uma parte só: quebra junto quando o bispo cai.
+  // Cajado com gema: peça destacável, quebra ao cair na morte.
   const staffGroup = new THREE.Group();
   staffGroup.userData.part = 'staff';
 
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.92, 5), mats.trim);
-  shaft.position.y = BASE_TOP + 0.5;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.02, 0.82, 5), mats.gold);
+  shaft.position.y = BASE_TOP + 0.45;
   staffGroup.add(shaft);
 
-  for (const y of [0.24, 0.62]) {
-    const knot = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0), mats.trim);
+  for (const y of [0.2, 0.56]) {
+    const knot = new THREE.Mesh(new THREE.OctahedronGeometry(0.032, 0), mats.gold);
     knot.position.y = BASE_TOP + y;
     staffGroup.add(knot);
   }
 
-  const claw = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.028, 0.08, 5), mats.trim);
-  claw.position.y = BASE_TOP + 0.97;
+  const claw = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.024, 0.07, 5), mats.gold);
+  claw.position.y = BASE_TOP + 0.88;
   staffGroup.add(claw);
 
-  // Cristal alongado envolto em chama arcana.
-  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), mats.glow);
-  crystal.scale.set(0.75, 1.7, 0.75);
-  crystal.position.y = BASE_TOP + 1.08;
-  staffGroup.add(crystal);
+  // Gema alongada envolta em chama arcana.
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), mats.energy);
+  gem.scale.set(0.75, 1.6, 0.75);
+  gem.position.y = BASE_TOP + 0.98;
+  staffGroup.add(gem);
 
-  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), mats.aura);
-  flame.scale.set(0.8, 1.5, 0.8);
-  flame.position.y = BASE_TOP + 1.1;
+  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), mats.aura);
+  flame.scale.set(0.8, 1.4, 0.8);
+  flame.position.y = BASE_TOP + 1.0;
   staffGroup.add(flame);
 
-  staffGroup.position.set(0.21, 0, 0.04);
+  staffGroup.position.set(0.19, 0, 0.03);
   staffGroup.rotation.z = 0.06;
   group.add(staffGroup);
+
+  // Rachaduras de energia encravadas na saia e no torso, cada uma no raio
+  // certo pra ficar rente à superfície (e não afundada ou flutuando).
+  addCracks(group, mats, {
+    radius: 0.185,
+    yMin: BASE_TOP + 0.09,
+    yMax: BASE_TOP + 0.24,
+    count: 3,
+    length: 0.1,
+    seed: 0.4,
+  });
+  addCracks(group, mats, {
+    radius: 0.125,
+    yMin: BASE_TOP + 0.4,
+    yMax: BASE_TOP + 0.58,
+    count: 3,
+    length: 0.09,
+    seed: 2.3,
+  });
 
   return group;
 }
