@@ -40,7 +40,12 @@ export class GameView {
     this.highlights = createHighlightLayer(this.scene);
     this.cameraRig = createCameraRig(this.camera, this.controls);
     this.decals = createDecalLayer(this.scene);
-    this.combat = createCombat({ scene: this.scene, decals: this.decals, audio });
+    this.combat = createCombat({
+      scene: this.scene,
+      decals: this.decals,
+      audio,
+      shake: (amount) => this._addShake(amount),
+    });
     this.environment = createEnvironment({ scene: this.scene, lights: scene.lights });
     this.cinematic = createCinematic({ camera: this.camera, controls: this.controls });
     this.specialFx = createSpecialFx({ scene: this.scene });
@@ -61,6 +66,8 @@ export class GameView {
     this.elapsed = 0;
     this.hovered = null;
     this._hoverAt = 0;
+    this._shakeTrauma = 0;
+    this._shakeOffset = new THREE.Vector3();
 
     this.pieceGroup = new THREE.Group();
     this.scene.add(this.pieceGroup);
@@ -96,8 +103,38 @@ export class GameView {
     this.environment.update(dt);
     this._updateAliveMotion();
     this.controls.update();
+
+    // Tremor de câmera no impacto: o deslocamento é aplicado só para este
+    // render e desfeito em seguida, então nunca briga com a órbita nem com
+    // a câmera cinematográfica (o efeito líquido no frame é zero).
+    const shaken = this._sampleShake(dt);
+    if (shaken) this.camera.position.add(this._shakeOffset);
     this.renderer.render(this.scene, this.camera);
+    if (shaken) this.camera.position.sub(this._shakeOffset);
+
     requestAnimationFrame(this._loop);
+  }
+
+  // Acumula "trauma" de tremor (0..1). Impactos maiores somam mais.
+  _addShake(amount = 0.4) {
+    this._shakeTrauma = Math.min(1, this._shakeTrauma + amount);
+  }
+
+  // Calcula o deslocamento do frame e decai o trauma. O tremor cresce com o
+  // quadrado do trauma, o que dá um golpe forte que se acalma rápido.
+  _sampleShake(dt) {
+    if (this._shakeTrauma < 0.001) {
+      this._shakeTrauma = 0;
+      return false;
+    }
+    const magnitude = this._shakeTrauma * this._shakeTrauma * 0.22;
+    this._shakeOffset.set(
+      (Math.random() * 2 - 1) * magnitude,
+      (Math.random() * 2 - 1) * magnitude,
+      (Math.random() * 2 - 1) * magnitude,
+    );
+    this._shakeTrauma = Math.max(0, this._shakeTrauma - dt * 2.4);
+    return true;
   }
 
   // Respiração das peças + tremor do rei em xeque + pulso da luz de tensão.

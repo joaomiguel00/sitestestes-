@@ -16,6 +16,10 @@ import {
 
 export const GLOW_COLOR = { [WHITE]: 0xff8c33, b: 0xd946ef };
 
+// Peso do impacto por tipo de peça destruída: peças maiores geram um golpe
+// mais forte (clarão maior, mais faíscas e mais tremor).
+const IMPACT_POWER = { p: 0.65, n: 1, b: 0.9, r: 1.35, q: 1.25, k: 1.6 };
+
 /* ------------------------------------------------------------ efeitos */
 
 function setXZ(mesh, from, to, t) {
@@ -110,6 +114,70 @@ function energyBeam(fx, start, end, color) {
     },
     dispose: () => disposeObject(beam),
   };
+}
+
+// Clarão aditivo no ponto do impacto: uma esfera brilhante que estoura e
+// some depressa. Independe do ângulo da câmera.
+function impactFlash(fx, position, color, { power = 1, y = 0.45 } = {}) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(0.22 + power * 0.14, 12, 12), material);
+  flash.position.set(position.x, y, position.z);
+  fx.add(flash);
+
+  animate(240, (t) => {
+    flash.scale.setScalar(0.5 + easeOut(t) * (1.4 + power));
+    material.opacity = 0.95 * (1 - t);
+  }).then(() => disposeObject(flash));
+}
+
+// Faíscas: estilhaços brilhantes que voam do impacto e caem com física.
+function sparks(fx, position, color, { count = 14, power = 1, y = 0.42 } = {}) {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const bits = [];
+  for (let i = 0; i < count; i++) {
+    const size = 0.02 + Math.random() * 0.028;
+    const bit = new THREE.Mesh(new THREE.TetrahedronGeometry(size, 0), material);
+    bit.position.set(position.x, y, position.z);
+    fx.add(bit);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = (1.3 + Math.random() * 1.9) * power;
+    bits.push({
+      object: bit,
+      floor: 0.02,
+      velocity: new THREE.Vector3(
+        Math.cos(angle) * speed,
+        1.1 + Math.random() * 2.4 * power,
+        Math.sin(angle) * speed,
+      ),
+      spin: new THREE.Vector3(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6),
+    });
+  }
+
+  simulateDebris(bits, 680, { gravity: 15, bounce: 0.18 }).then(async () => {
+    await Promise.all(
+      bits.map((b) => animate(200, (t) => b.object.scale.setScalar(Math.max(0.01, 1 - t)))),
+    );
+    bits.forEach((b) => disposeObject(b.object));
+    material.dispose();
+  });
+}
+
+// Estouro completo de impacto: clarão + faíscas, com força pelo tipo de peça.
+function impactBurst(fx, position, color, power = 1) {
+  impactFlash(fx, position, color, { power });
+  sparks(fx, position, color, { count: Math.round(10 + power * 9), power });
 }
 
 // Arco do golpe giratório da rainha.
@@ -639,7 +707,7 @@ const DEATHS = {
 
 /* ---------------------------------------------------------- orquestração */
 
-export function createCombat({ scene, decals, audio }) {
+export function createCombat({ scene, decals, audio, shake }) {
   const fx = new THREE.Group();
   scene.add(fx);
 
@@ -660,6 +728,11 @@ export function createCombat({ scene, decals, audio }) {
     let death = Promise.resolve();
 
     const runDeath = () => {
+      // Estouro de impacto no exato momento do golpe.
+      const power = IMPACT_POWER[victimType] ?? 1;
+      impactBurst(fx, victimPos, GLOW_COLOR[attackerColor] ?? GLOW_COLOR.b, power);
+      shake?.(0.3 + power * 0.16);
+
       audio?.playDeath(victimType);
       death = DEATHS[victimType]({
         mesh: victim,
@@ -698,6 +771,7 @@ export function createCombat({ scene, decals, audio }) {
   // Xeque-mate: o rei derrotado se ajoelha e fica assim no tabuleiro.
   function playKingFall({ mesh, position, attackerPos }) {
     if (!mesh) return Promise.resolve();
+    shake?.(0.7);
     return DEATHS.k({
       mesh,
       fx,
