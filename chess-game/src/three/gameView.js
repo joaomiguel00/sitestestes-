@@ -3,25 +3,13 @@ import { createBoardScene, squareToWorld } from './boardScene.js';
 import { createHighlightLayer } from './highlights.js';
 import { createPieceMesh } from './pieceModels.js';
 import { createCameraRig } from './cameraRig.js';
+import { createDecalLayer } from './decals.js';
+import { createCombat } from './combat.js';
+import { animate, easeInOut } from './animation.js';
 import { findKing } from '../chess/moveGen.js';
 import { STATUS } from '../chess/game.js';
 
 const key = (row, col) => `${row},${col}`;
-
-function animate(duration, onFrame) {
-  return new Promise((resolve) => {
-    const start = performance.now();
-    function step(now) {
-      const t = Math.min(1, (now - start) / duration);
-      onFrame(t);
-      if (t < 1) requestAnimationFrame(step);
-      else resolve();
-    }
-    requestAnimationFrame(step);
-  });
-}
-
-const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 export class GameView {
   constructor(container, game, callbacks = {}) {
@@ -41,6 +29,8 @@ export class GameView {
 
     this.highlights = createHighlightLayer(this.scene);
     this.cameraRig = createCameraRig(this.camera, this.controls);
+    this.decals = createDecalLayer(this.scene);
+    this.combat = createCombat({ scene: this.scene, decals: this.decals });
 
     this.pieceGroup = new THREE.Group();
     this.scene.add(this.pieceGroup);
@@ -211,17 +201,37 @@ export class GameView {
 
     const movingColor = this.game.turn;
     const mesh = this.pieces.get(key(move.from.row, move.from.col));
+    const movingPiece = this.game.board[move.from.row][move.from.col];
 
-    const capturedKey = move.enPassant
-      ? key(move.from.row, move.to.col)
-      : key(move.to.row, move.to.col);
-    const capturedMesh = this.pieces.get(capturedKey);
-    if (capturedMesh && capturedMesh !== mesh) {
-      this.pieces.delete(capturedKey);
-      this._animateCapture(capturedMesh);
+    const victimSquare = move.enPassant
+      ? { row: move.from.row, col: move.to.col }
+      : { row: move.to.row, col: move.to.col };
+    const victimKey = key(victimSquare.row, victimSquare.col);
+    const victimPiece = this.game.board[victimSquare.row][victimSquare.col];
+    const victimMesh = this.pieces.get(victimKey);
+
+    const animations = [];
+
+    if (victimMesh && victimMesh !== mesh && victimPiece) {
+      this.pieces.delete(victimKey);
+      animations.push(
+        this.combat.playCapture({
+          attacker: mesh,
+          attackerType: movingPiece.type,
+          attackerColor: movingPiece.color,
+          from: squareToWorld(move.from.row, move.from.col),
+          to: squareToWorld(move.to.row, move.to.col),
+          victim: victimMesh,
+          victimType: victimPiece.type,
+          victimColor: victimPiece.color,
+          victimPos: squareToWorld(victimSquare.row, victimSquare.col),
+          victimSquare,
+          onVictimGone: (dead) => this.pieceGroup.remove(dead),
+        }),
+      );
+    } else {
+      animations.push(this._animateSlide(mesh, squareToWorld(move.to.row, move.to.col)));
     }
-
-    const animations = [this._animateSlide(mesh, squareToWorld(move.to.row, move.to.col))];
 
     if (move.castle) {
       const rookKey = key(move.castle.rookFrom.row, move.castle.rookFrom.col);
@@ -250,6 +260,19 @@ export class GameView {
     }
 
     this._renderHighlights();
+
+    // No xeque-mate o rei não é capturado: ele se ajoelha e fica no tabuleiro.
+    if (this.game.status === STATUS.CHECKMATE) {
+      const king = findKing(this.game.board, this.game.turn);
+      if (king) {
+        await this.combat.playKingFall({
+          mesh: this.pieces.get(key(king.row, king.col)),
+          position: squareToWorld(king.row, king.col),
+          attackerPos: squareToWorld(move.to.row, move.to.col),
+        });
+      }
+    }
+
     this.callbacks.onStatusChange?.(this.game);
 
     if (!this.game.isGameOver()) {
@@ -271,14 +294,6 @@ export class GameView {
     });
   }
 
-  _animateCapture(mesh, duration = 300) {
-    animate(duration, (t) => {
-      mesh.scale.setScalar(Math.max(0.001, 1 - t));
-      mesh.position.y = t * 0.5;
-      mesh.rotation.y += 0.15;
-    }).then(() => this.pieceGroup.remove(mesh));
-  }
-
   focusOnSide(color) {
     this.cameraRig.snapToSide(color);
   }
@@ -286,6 +301,8 @@ export class GameView {
   dispose() {
     this.disposed = true;
     this.renderer.domElement.removeEventListener('pointerdown', this._onClick);
+    this.combat.dispose();
+    this.decals.clear();
     this._disposeScene();
   }
 }

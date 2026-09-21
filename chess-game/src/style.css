@@ -165,6 +165,75 @@ h3,
   font-size: 13px;
 }
 
+/* ------------------------------------------------------- opções/toggle */
+
+.option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 10, 16, 0.6);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.option-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  border: 1px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.6);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.option-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: var(--text-dim);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.option-toggle input:checked + .option-switch {
+  border-color: var(--danger);
+  background: rgba(120, 20, 30, 0.45);
+}
+
+.option-toggle input:checked + .option-switch::after {
+  transform: translateX(18px);
+  background: var(--danger);
+}
+
+.option-toggle input:focus-visible + .option-switch {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.option-text strong {
+  display: block;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.option-text em {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--text-dim);
+}
+
 /* ------------------------------------------------------------ montagem */
 
 .setup-screen {

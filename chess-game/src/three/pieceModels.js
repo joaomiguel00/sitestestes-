@@ -27,6 +27,14 @@ function createMaterials(color) {
       metalness: 0.1,
       flatShading: true,
     }),
+    // Casca translúcida de "chama" em volta dos cristais.
+    aura: new THREE.MeshBasicMaterial({
+      color: isOrder ? 0xff9f4d : 0xf05bff,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      flatShading: true,
+    }),
   };
 }
 
@@ -63,6 +71,7 @@ function addMerlons(group, mats, radius, y, count, size) {
 
 function buildCrown(mats, radius, y, spikes, spikeHeight, bigCenter) {
   const group = new THREE.Group();
+  group.userData.part = 'crown';
 
   const band = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.07, 8), mats.trim);
   band.position.y = y;
@@ -121,6 +130,7 @@ function buildPawn(mats) {
   const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.035, 8), mats.trim);
   shield.rotation.z = Math.PI / 2;
   shield.position.set(0.18, BASE_TOP + 0.33, 0.05);
+  shield.userData.part = 'shield';
   group.add(shield);
 
   return group;
@@ -213,7 +223,7 @@ function buildKnight(mats) {
   return group;
 }
 
-// Bispo: figura encapuzada com cajado e orbe arcano.
+// Bispo: figura encapuzada, manto com debrum dourado e cajado de cristal.
 function buildBishop(mats) {
   const group = new THREE.Group();
   group.add(buildPedestal(mats));
@@ -222,32 +232,69 @@ function buildBishop(mats) {
   robe.position.y = BASE_TOP + 0.37;
   group.add(robe);
 
-  const sash = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 5, 8), mats.trim);
-  sash.rotation.x = Math.PI / 2;
-  sash.position.y = BASE_TOP + 0.52;
-  group.add(sash);
+  // Debrum dourado descendo pela frente do manto.
+  const hem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.02), mats.trim);
+  hem.position.set(0.035, BASE_TOP + 0.4, 0.15);
+  hem.rotation.x = -0.08;
+  group.add(hem);
 
-  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.26, 6), mats.stone);
-  hood.position.y = BASE_TOP + 0.87;
+  const border = new THREE.Mesh(new THREE.TorusGeometry(0.195, 0.02, 4, 8), mats.trim);
+  border.rotation.x = Math.PI / 2;
+  border.position.y = BASE_TOP + 0.06;
+  group.add(border);
+
+  // Capa curta sobre os ombros.
+  const cape = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.24, 7, 1, true), mats.stone);
+  cape.material.side = THREE.DoubleSide;
+  cape.position.y = BASE_TOP + 0.66;
+  group.add(cape);
+
+  const capeTrim = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.022, 4, 8), mats.trim);
+  capeTrim.rotation.x = Math.PI / 2;
+  capeTrim.position.y = BASE_TOP + 0.56;
+  group.add(capeTrim);
+
+  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 6), mats.stone);
+  hood.position.y = BASE_TOP + 0.89;
   group.add(hood);
 
-  const face = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), mats.glow);
-  face.position.set(0, BASE_TOP + 0.81, 0.08);
+  // Vazio sob o capuz, com um brilho onde estaria o rosto.
+  const face = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), mats.glow);
+  face.position.set(0, BASE_TOP + 0.83, 0.075);
   group.add(face);
 
-  const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.78, 5), mats.trim);
-  staff.position.set(0.2, BASE_TOP + 0.5, 0.04);
-  staff.rotation.z = 0.08;
-  group.add(staff);
+  // O cajado inteiro é uma parte só: quebra junto quando o bispo cai.
+  const staffGroup = new THREE.Group();
+  staffGroup.userData.part = 'staff';
 
-  const crook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 5, 8, Math.PI * 1.4), mats.trim);
-  crook.position.set(0.225, BASE_TOP + 0.92, 0.04);
-  crook.rotation.y = Math.PI / 2;
-  group.add(crook);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.92, 5), mats.trim);
+  shaft.position.y = BASE_TOP + 0.5;
+  staffGroup.add(shaft);
 
-  const orb = new THREE.Mesh(new THREE.OctahedronGeometry(0.055, 0), mats.glow);
-  orb.position.set(0.225, BASE_TOP + 0.92, 0.04);
-  group.add(orb);
+  for (const y of [0.24, 0.62]) {
+    const knot = new THREE.Mesh(new THREE.OctahedronGeometry(0.035, 0), mats.trim);
+    knot.position.y = BASE_TOP + y;
+    staffGroup.add(knot);
+  }
+
+  const claw = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.028, 0.08, 5), mats.trim);
+  claw.position.y = BASE_TOP + 0.97;
+  staffGroup.add(claw);
+
+  // Cristal alongado envolto em chama arcana.
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.06, 0), mats.glow);
+  crystal.scale.set(0.75, 1.7, 0.75);
+  crystal.position.y = BASE_TOP + 1.08;
+  staffGroup.add(crystal);
+
+  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), mats.aura);
+  flame.scale.set(0.8, 1.5, 0.8);
+  flame.position.y = BASE_TOP + 1.1;
+  staffGroup.add(flame);
+
+  staffGroup.position.set(0.21, 0, 0.04);
+  staffGroup.rotation.z = 0.06;
+  group.add(staffGroup);
 
   return group;
 }

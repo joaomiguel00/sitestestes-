@@ -4,6 +4,8 @@ import { ChessGame, createStandardBoard, STATUS } from './chess/game.js';
 import { mergeBoards, kingIsInCheck } from './chess/setup.js';
 import { GameView } from './three/gameView.js';
 import { renderSetupUI } from './ui/setupUI.js';
+import { settings, setSetting } from './settings.js';
+import { createCaptureTester } from './debug.js';
 
 const uiRoot = document.getElementById('ui-root');
 const canvasContainer = document.getElementById('canvas-container');
@@ -50,12 +52,23 @@ function showStartMenu() {
             <span>Cada exército se posiciona em segredo, em até 3 fileiras</span>
           </button>
         </div>
+        <label class="option-toggle" for="opt-gore">
+          <input type="checkbox" id="opt-gore" ${settings.gore ? 'checked' : ''} />
+          <span class="option-switch"></span>
+          <span class="option-text">
+            <strong>Sangue e destroços</strong>
+            <em>Marcas de captura que ficam no tabuleiro até o fim da partida</em>
+          </span>
+        </label>
       </div>
     </div>
   `;
 
   uiRoot.querySelector('#btn-standard').onclick = () => launchMatch(createStandardBoard(), false);
   uiRoot.querySelector('#btn-custom').onclick = startCustomFlow;
+  uiRoot.querySelector('#opt-gore').onchange = (event) => {
+    setSetting('gore', event.target.checked);
+  };
 }
 
 /* ------------------------------------------------- montagem customizada */
@@ -154,7 +167,7 @@ async function launchMatch(board, withReveal) {
   if (withReveal) await gameView.playRevealAnimation();
 
   // Expõe o estado para depuração no console do navegador.
-  window.xadrez = { game, gameView };
+  window.xadrez = { game, gameView, testarCaptura: createCaptureTester(() => window.xadrez) };
 }
 
 function renderHUD(game) {
