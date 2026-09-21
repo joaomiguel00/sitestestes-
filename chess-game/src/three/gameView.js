@@ -16,8 +16,9 @@ import { cloneBoard, findKing } from '../chess/moveGen.js';
 import { STATUS } from '../chess/game.js';
 import { audio } from '../audio/index.js';
 
-// A partir de quantas capturas o campo de batalha chega ao clima mais sombrio.
-const MOOD_FULL_AT = 16;
+// A partir de quantas capturas o clima chega ao ponto mais sombrio (nevasca).
+// Mais baixo = a mudança de clima acontece mais rápido.
+const MOOD_FULL_AT = 8;
 
 const key = (row, col) => `${row},${col}`;
 

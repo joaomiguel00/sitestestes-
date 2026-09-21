@@ -9,8 +9,10 @@ export function squareToWorld(row, col) {
 
 export function createBoardScene(container) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05050a);
-  scene.fog = new THREE.FogExp2(0x05050a, 0.035);
+  // Crepúsculo roxo de floresta nevada: o fundo e a névoa dão o tom frio,
+  // e a névoa tinge de violeta tudo que está ao longe.
+  scene.background = new THREE.Color(0x1a0f2e);
+  scene.fog = new THREE.FogExp2(0x3a2358, 0.045);
 
   const camera = new THREE.PerspectiveCamera(
     45,
@@ -38,13 +40,13 @@ export function createBoardScene(container) {
   controls.maxPolarAngle = Math.PI * 0.48;
   controls.update();
 
-  const ambientLight = new THREE.AmbientLight(0x6b6878, 1.05);
+  const ambientLight = new THREE.AmbientLight(0x6a5c8c, 1.05);
   scene.add(ambientLight);
 
-  const hemiLight = new THREE.HemisphereLight(0x8e8ca6, 0x2a1d16, 0.85);
+  const hemiLight = new THREE.HemisphereLight(0x9c7fd6, 0x241a3a, 0.9);
   scene.add(hemiLight);
 
-  const keyLight = new THREE.DirectionalLight(0xffd7ab, 2.6);
+  const keyLight = new THREE.DirectionalLight(0xf0d8ff, 2.4);
   keyLight.position.set(5, 9, 4);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
