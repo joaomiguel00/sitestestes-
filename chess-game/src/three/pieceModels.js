@@ -379,6 +379,42 @@ const BUILDERS = {
   k: buildKing,
 };
 
+// Marca de veterano: pequenos entalhes brilhantes na base, um por abate
+// (até cinco). Fica rente ao pedestal para não competir com os marcadores
+// de lance do tabuleiro.
+const MAX_TALLY = 5;
+
+export function applyVeteranMark(piece, kills) {
+  if (!piece || kills <= 0) return;
+
+  let tally = piece.userData.tally;
+  if (!tally) {
+    tally = new THREE.Group();
+    tally.name = 'tally';
+    piece.add(tally);
+    piece.userData.tally = tally;
+  }
+
+  const isOrder = piece.userData.pieceColor === WHITE;
+  const shown = Math.min(kills, MAX_TALLY);
+  if (tally.children.length >= shown) return;
+
+  const material = new THREE.MeshBasicMaterial({
+    color: isOrder ? 0xffb257 : 0xf05bff,
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.85,
+  });
+
+  for (let i = tally.children.length; i < shown; i++) {
+    const notch = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.075, 0.018), material);
+    // Enfileirados na frente da base, como marcas de contagem.
+    notch.position.set(-0.11 + i * 0.055, 0.075, 0.33);
+    notch.rotation.x = 0.25;
+    tally.add(notch);
+  }
+}
+
 export function createPieceMesh(type, color) {
   const mats = createMaterials(color);
   const model = BUILDERS[type](mats);

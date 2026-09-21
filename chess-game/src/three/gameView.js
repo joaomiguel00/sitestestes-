@@ -6,8 +6,13 @@ import { createCameraRig } from './cameraRig.js';
 import { createDecalLayer } from './decals.js';
 import { createCombat } from './combat.js';
 import { createEnvironment } from './environment.js';
+import { createCinematic } from './cinematic.js';
+import { createSpecialFx } from './specialFx.js';
+import { createReplay, scoreMoment, pickHighlights } from './replay.js';
+import { applyIdleMotion, idlePhase } from './idleMotion.js';
+import { applyVeteranMark } from './pieceModels.js';
 import { animate, easeInOut } from './animation.js';
-import { findKing } from '../chess/moveGen.js';
+import { cloneBoard, findKing } from '../chess/moveGen.js';
 import { STATUS } from '../chess/game.js';
 import { audio } from '../audio/index.js';
 
@@ -37,6 +42,25 @@ export class GameView {
     this.decals = createDecalLayer(this.scene);
     this.combat = createCombat({ scene: this.scene, decals: this.decals, audio });
     this.environment = createEnvironment({ scene: this.scene, lights: scene.lights });
+    this.cinematic = createCinematic({ camera: this.camera, controls: this.controls });
+    this.specialFx = createSpecialFx({ scene: this.scene });
+    this.replay = createReplay({
+      scene: this.scene,
+      camera: this.camera,
+      controls: this.controls,
+      cinematic: this.cinematic,
+      audio,
+    });
+
+    // Luz vermelha que pulsa sobre o rei em xeque.
+    this.checkLight = new THREE.PointLight(0xff2a2a, 0, 7, 2);
+    this.checkLight.visible = false;
+    this.scene.add(this.checkLight);
+
+    this.moments = [];
+    this.elapsed = 0;
+    this.hovered = null;
+    this._hoverAt = 0;
 
     this.pieceGroup = new THREE.Group();
     this.scene.add(this.pieceGroup);
@@ -50,7 +74,9 @@ export class GameView {
     this._raycaster = new THREE.Raycaster();
     this._pointer = new THREE.Vector2();
     this._onClick = this._onClick.bind(this);
+    this._onPointerMove = this._onPointerMove.bind(this);
     this.renderer.domElement.addEventListener('pointerdown', this._onClick);
+    this.renderer.domElement.addEventListener('pointermove', this._onPointerMove);
 
     this._buildPieces();
     this._renderHighlights();
@@ -65,10 +91,40 @@ export class GameView {
     if (this.disposed) return;
     const dt = Math.min(0.05, (now - this._lastFrame) / 1000);
     this._lastFrame = now;
+    this.elapsed += dt;
+
     this.environment.update(dt);
+    this._updateAliveMotion();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this._loop);
+  }
+
+  // Respiração das peças + tremor do rei em xeque + pulso da luz de tensão.
+  _updateAliveMotion() {
+    const inCheck =
+      this.game.status === STATUS.CHECK || this.game.status === STATUS.CHECKMATE;
+    let tremblingKey = null;
+
+    if (inCheck) {
+      const king = findKing(this.game.board, this.game.turn);
+      if (king) {
+        tremblingKey = key(king.row, king.col);
+        const position = squareToWorld(king.row, king.col);
+        const pulse = 0.55 + 0.45 * Math.sin(this.elapsed * 7);
+        this.checkLight.visible = true;
+        this.checkLight.position.set(position.x, 1.3, position.z);
+        this.checkLight.intensity = 9 * pulse;
+      }
+    } else if (this.checkLight.visible) {
+      this.checkLight.visible = false;
+      this.checkLight.intensity = 0;
+    }
+
+    applyIdleMotion(this.pieces, this.elapsed, {
+      tremblingKey,
+      tremble: inCheck ? 1 : 0,
+    });
   }
 
   // O clima acompanha o número de peças já tiradas do tabuleiro.
@@ -94,9 +150,38 @@ export class GameView {
     const mesh = createPieceMesh(type, color);
     const pos = squareToWorld(row, col);
     mesh.position.set(pos.x, 0, pos.z);
+    mesh.userData.idlePhase = idlePhase();
     this.pieceGroup.add(mesh);
     this.pieces.set(key(row, col), mesh);
+    applyVeteranMark(mesh, this.game.board[row][col]?.kills ?? 0);
     return mesh;
+  }
+
+  // Tooltip de veterano: quantos abates a peça sob o cursor já tem.
+  _onPointerMove(event) {
+    if (!this.callbacks.onHoverPiece || this.busy) return;
+    const now = performance.now();
+    if (now - this._hoverAt < 70) return;
+    this._hoverAt = now;
+
+    const square = this._squareAtPointer(event);
+    const piece = square ? this.game.board[square.row][square.col] : null;
+
+    if (!piece || !piece.kills) {
+      if (this.hovered) {
+        this.hovered = null;
+        this.callbacks.onHoverPiece(null);
+      }
+      return;
+    }
+
+    const id = `${square.row},${square.col}`;
+    if (this.hovered === id) {
+      this.callbacks.onHoverPiece({ piece, x: event.clientX, y: event.clientY });
+      return;
+    }
+    this.hovered = id;
+    this.callbacks.onHoverPiece({ piece, x: event.clientX, y: event.clientY });
   }
 
   // Animação de revelação do tabuleiro (usada no modo customizado).
@@ -134,10 +219,8 @@ export class GameView {
     );
   }
 
-  _onClick(event) {
-    if (this.busy || this.disposed || this.game.isGameOver()) return;
-    if (event.button !== undefined && event.button !== 0) return;
-
+  // Casa sob o ponteiro: bate na peça ou na casa, o que vier primeiro.
+  _squareAtPointer(event) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this._pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -147,24 +230,28 @@ export class GameView {
       [...this.tiles, ...this.pieceGroup.children],
       true,
     );
-    if (!hits.length) return;
+    if (!hits.length) return null;
 
     let object = hits[0].object;
-    let square = null;
-
     if (object.userData?.isTile) {
-      square = { row: object.userData.row, col: object.userData.col };
-    } else {
-      while (object.parent && object.parent !== this.pieceGroup) object = object.parent;
-      for (const [k, mesh] of this.pieces) {
-        if (mesh === object) {
-          const [row, col] = k.split(',').map(Number);
-          square = { row, col };
-          break;
-        }
-      }
+      return { row: object.userData.row, col: object.userData.col };
     }
 
+    while (object.parent && object.parent !== this.pieceGroup) object = object.parent;
+    for (const [k, mesh] of this.pieces) {
+      if (mesh === object) {
+        const [row, col] = k.split(',').map(Number);
+        return { row, col };
+      }
+    }
+    return null;
+  }
+
+  _onClick(event) {
+    if (this.busy || this.disposed || this.game.isGameOver()) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const square = this._squareAtPointer(event);
     if (square) this._handleSquareClick(square.row, square.col);
   }
 
@@ -220,6 +307,7 @@ export class GameView {
     const movingColor = this.game.turn;
     const mesh = this.pieces.get(key(move.from.row, move.from.col));
     const movingPiece = this.game.board[move.from.row][move.from.col];
+    const snapshot = cloneBoard(this.game.board);
 
     const victimSquare = move.enPassant
       ? { row: move.from.row, col: move.to.col }
@@ -232,6 +320,17 @@ export class GameView {
 
     if (victimMesh && victimMesh !== mesh && victimPiece) {
       this.pieces.delete(victimKey);
+
+      const attackerPos = squareToWorld(move.from.row, move.from.col);
+      const victimPos = squareToWorld(victimSquare.row, victimSquare.col);
+
+      await this.cinematic.start(attackerPos, victimPos);
+
+      if (move.enPassant) {
+        // Ataque furtivo: o vulto corre até a vítima antes do golpe.
+        await this.specialFx.playEnPassant(attackerPos, victimPos, movingPiece.color);
+      }
+
       animations.push(
         this.combat.playCapture({
           attacker: mesh,
@@ -258,6 +357,13 @@ export class GameView {
       this.pieces.delete(rookKey);
       this.pieces.set(key(move.castle.rookTo.row, move.castle.rookTo.col), rookMesh);
       animations.push(
+        this.specialFx.playCastle(
+          squareToWorld(move.castle.rookFrom.row, move.castle.rookFrom.col),
+          squareToWorld(move.to.row, move.to.col),
+          movingPiece.color,
+        ),
+      );
+      animations.push(
         this._animateSlide(rookMesh, squareToWorld(move.castle.rookTo.row, move.castle.rookTo.col)),
       );
     }
@@ -266,21 +372,46 @@ export class GameView {
     this.pieces.set(key(move.to.row, move.to.col), mesh);
 
     await Promise.all(animations);
+    await this.cinematic.end();
 
     this.game.makeMove(move, promotionType);
 
+    // A peça que capturou vira veterana e ganha um entalhe na base.
+    if (victimPiece) {
+      const survivor = this.game.board[move.to.row][move.to.col];
+      if (survivor) {
+        survivor.kills = (survivor.kills ?? 0) + 1;
+        applyVeteranMark(this.pieces.get(key(move.to.row, move.to.col)), survivor.kills);
+      }
+    }
+
     if (move.promotion) {
+      const position = squareToWorld(move.to.row, move.to.col);
       this.pieceGroup.remove(mesh);
       this.pieces.delete(key(move.to.row, move.to.col));
+
+      // Coroação: a luz desce antes da peça nova assumir o lugar.
+      const ceremony = this.specialFx.playPromotion(position, movingColor);
       const promoted = this._spawnPiece(promotionType, movingColor, move.to.row, move.to.col);
       promoted.scale.setScalar(0.001);
-      await animate(320, (t) => promoted.scale.setScalar(easeInOut(t)));
+      await animate(520, (t) => promoted.scale.setScalar(easeInOut(t)));
       promoted.scale.setScalar(1);
+      await ceremony;
     }
+
+    this._recordMoment({
+      snapshot,
+      move,
+      movingPiece,
+      victimPiece,
+      victimSquare,
+      promotionType,
+    });
 
     this._renderHighlights();
     this._updateMood();
 
+    audio.setAlert(this.game.status === STATUS.CHECK);
     if (this.game.status === STATUS.CHECK) audio.playUi('check');
 
     // No xeque-mate o rei não é capturado: ele se ajoelha e fica no tabuleiro.
@@ -297,6 +428,10 @@ export class GameView {
       audio.playUi('victory');
     }
 
+    if (this.game.isGameOver()) {
+      await this._playHighlights();
+    }
+
     this.callbacks.onStatusChange?.(this.game);
 
     if (!this.game.isGameOver()) {
@@ -304,6 +439,47 @@ export class GameView {
     }
 
     this.busy = false;
+  }
+
+  // Guarda o lance caso ele tenha valor de destaque (captura, xeque,
+  // promoção, roque, en passant ou o mate).
+  _recordMoment({ snapshot, move, movingPiece, victimPiece, victimSquare, promotionType }) {
+    const scored = scoreMoment({
+      move,
+      movingType: movingPiece.type,
+      victimType: victimPiece?.type,
+      status: this.game.status,
+      promotionType,
+    });
+    if (!scored) return;
+
+    this.moments.push({
+      index: this.moments.length,
+      score: scored.score,
+      caption: scored.caption,
+      board: snapshot,
+      move,
+      movingType: movingPiece.type,
+      movingColor: movingPiece.color,
+      victimType: victimPiece?.type,
+      victimColor: victimPiece?.color,
+      victimSquare: victimPiece ? victimSquare : null,
+    });
+  }
+
+  async _playHighlights() {
+    const highlights = pickHighlights(this.moments, 3);
+    if (!highlights.length) return;
+
+    this.pieceGroup.visible = false;
+    this.callbacks.onReplayStart?.();
+
+    await this.replay.play(highlights, {
+      onCaption: (text) => this.callbacks.onReplayCaption?.(text),
+    });
+
+    this.pieceGroup.visible = true;
+    this.callbacks.onReplayEnd?.();
   }
 
   _animateSlide(mesh, target, duration = 340) {
@@ -325,7 +501,11 @@ export class GameView {
   dispose() {
     this.disposed = true;
     this.renderer.domElement.removeEventListener('pointerdown', this._onClick);
+    this.renderer.domElement.removeEventListener('pointermove', this._onPointerMove);
+    this.cinematic.cancel();
     this.combat.dispose();
+    this.specialFx.dispose();
+    this.replay.dispose();
     this.decals.clear();
     this.environment.dispose();
     this._disposeScene();

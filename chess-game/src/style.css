@@ -289,6 +289,85 @@ h3,
   color: var(--text-dim);
 }
 
+.btn-wide {
+  width: 100%;
+  margin-top: 14px;
+}
+
+/* --------------------------------------------- veteranos e replay final */
+
+.veteran-tip {
+  position: absolute;
+  z-index: 30;
+  padding: 8px 12px;
+  border: 1px solid var(--stroke);
+  background: rgba(8, 8, 14, 0.94);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.veteran-tip strong {
+  display: block;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 12px;
+  color: var(--gold-bright);
+}
+
+.veteran-tip span {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.replay-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.replay-bar {
+  width: 100%;
+  padding: 14px 0;
+  background: linear-gradient(180deg, rgba(3, 3, 6, 0.9), rgba(3, 3, 6, 0));
+  text-align: center;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.replay-bottom {
+  background: linear-gradient(0deg, rgba(3, 3, 6, 0.9), rgba(3, 3, 6, 0));
+}
+
+.replay-caption {
+  max-width: 80%;
+  padding: 10px 22px;
+  border-left: 2px solid var(--gold);
+  background: rgba(3, 3, 6, 0.72);
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: clamp(15px, 2.4vw, 22px);
+  color: var(--gold-bright);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.replay-caption.is-visible {
+  animation: caption-in 0.5s ease forwards;
+}
+
+@keyframes caption-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ------------------------------------------------------------ montagem */
 
 .setup-screen {

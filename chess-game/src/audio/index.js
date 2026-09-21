@@ -21,6 +21,7 @@ export const audio = {
     music.setIntensity(intensity);
     music.setRain(rain);
   },
+  setAlert: music.setAlert,
   playAttack: sfx.playAttack,
   playDeath: sfx.playDeath,
   playStep: sfx.playStep,

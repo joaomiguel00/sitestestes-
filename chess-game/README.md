@@ -73,6 +73,25 @@ npm run preview  # serve o build de produção
 - Volume e mudo no menu inicial (salvos no navegador) e um botão de mudo no
   HUD durante a partida.
 
+**Polimento e imersão (etapa 4)**
+
+- **Câmera cinematográfica** opcional nas capturas: aproxima em câmera lenta,
+  segura o golpe por ~1,3 s e devolve o enquadramento e o controle ao jogador.
+- **Peças vivas**: quem está parado respira, o cavalo acena com a cabeça, o
+  bispo flutua e a torre fica quase imóvel, como convém à pedra.
+- **Xeque**: o rei ameaçado treme, uma luz vermelha pulsa sobre a casa dele e
+  a trilha fecha o filtro e sobe a voz dissonante.
+- **Veteranos**: cada captura acrescenta um entalhe brilhante na base da peça
+  (até cinco). Passar o mouse mostra o nome e a contagem de abates.
+- **Lances especiais com cena própria**: promoção vira cerimônia de coroação
+  com coluna de luz e faíscas, o roque abre portões de pedra na casa da torre
+  e o en passant é um golpe furtivo com rastro e corte.
+- **Fim de jogo**: depois do rei se ajoelhar, um replay mostra até três
+  momentos da partida (com legenda) antes da tela de vitória; clique ou
+  tecle para pular.
+- **Menu de opções** reunindo sangue/destroços, câmera cinematográfica e
+  volume/mudo, acessível do menu inicial e do HUD (⚙) durante a partida.
+
 **Câmera e interação**
 
 - Órbita livre com zoom (OrbitControls); a câmera gira suavemente para o lado
@@ -93,6 +112,10 @@ src/
     pieceModels.js modelos low poly de cada peça
     highlights.js  marcadores de seleção/lances/xeque
     cameraRig.js   giro de câmera por turno
+    cinematic.js   câmera lenta e aproximação nas capturas
+    idleMotion.js  respiração das peças e tremor do rei em xeque
+    specialFx.js   coroação, portões do roque e golpe furtivo
+    replay.js      seleção e reprodução dos melhores momentos
     environment.js arena, campo de batalha, tochas, bandeiras e clima
     animation.js   utilidades de animação (tempo, easing, fade, reparent)
     combat.js      ataques, mortes e efeitos transitórios por tipo de peça
@@ -104,7 +127,7 @@ src/
     engine.js    AudioContext, barramentos, volume e carga de arquivos
     sfx.js       efeitos sintetizados por tipo de peça
     music.js     trilha ambiente procedural (ou arquivo próprio)
-  settings.js  preferências (sangue/destroços, volume, mudo)
+  settings.js  preferências (sangue/destroços, cinematográfica, volume, mudo)
   debug.js     montador de cenas de captura para conferir animações
   main.js      fluxo de telas (menu, montagem, revelação, partida)
 ```

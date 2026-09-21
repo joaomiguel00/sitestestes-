@@ -54,14 +54,54 @@ function showStartMenu() {
             <span>Cada exército se posiciona em segredo, em até 3 fileiras</span>
           </button>
         </div>
-        <label class="option-toggle" for="opt-gore">
-          <input type="checkbox" id="opt-gore" ${settings.gore ? 'checked' : ''} />
-          <span class="option-switch"></span>
-          <span class="option-text">
-            <strong>Sangue e destroços</strong>
-            <em>Marcas de captura que ficam no tabuleiro até o fim da partida</em>
-          </span>
-        </label>
+        <button class="btn btn-ghost btn-wide" id="btn-options">Opções</button>
+      </div>
+    </div>
+  `;
+
+  uiRoot.querySelector('#btn-standard').onclick = () => launchMatch(createStandardBoard(), false);
+  uiRoot.querySelector('#btn-custom').onclick = startCustomFlow;
+  uiRoot.querySelector('#btn-options').onclick = () => showOptions(showStartMenu);
+}
+
+/* -------------------------------------------------------------- opções */
+
+const TOGGLES = [
+  {
+    key: 'gore',
+    title: 'Sangue e destroços',
+    hint: 'Marcas de captura que ficam no tabuleiro até o fim da partida',
+  },
+  {
+    key: 'cinematic',
+    title: 'Câmera cinematográfica',
+    hint: 'Nas capturas, a câmera se aproxima em câmera lenta e depois volta',
+  },
+];
+
+// Todas as preferências num lugar só. `onBack` decide para onde voltar,
+// então a mesma tela serve ao menu inicial e ao HUD durante a partida.
+function showOptions(onBack) {
+  resetUI();
+  uiRoot.innerHTML = `
+    <div class="screen options-screen">
+      <div class="start-card">
+        <p class="eyebrow">Ajustes</p>
+        <h2>Opções</h2>
+
+        ${TOGGLES.map(
+          (toggle) => `
+          <label class="option-toggle" for="opt-${toggle.key}">
+            <input type="checkbox" id="opt-${toggle.key}" data-key="${toggle.key}"
+              ${settings[toggle.key] ? 'checked' : ''} />
+            <span class="option-switch"></span>
+            <span class="option-text">
+              <strong>${toggle.title}</strong>
+              <em>${toggle.hint}</em>
+            </span>
+          </label>`,
+        ).join('')}
+
         <div class="option-volume">
           <button class="volume-button" id="btn-mute" type="button" aria-pressed="${settings.muted}">
             ${settings.muted ? '🔇' : '🔊'}
@@ -78,15 +118,18 @@ function showStartMenu() {
             value="${Math.round(settings.volume * 100)}"
           />
         </div>
+
+        <button class="btn btn-primary btn-wide" id="btn-back">Voltar</button>
       </div>
     </div>
   `;
 
-  uiRoot.querySelector('#btn-standard').onclick = () => launchMatch(createStandardBoard(), false);
-  uiRoot.querySelector('#btn-custom').onclick = startCustomFlow;
-  uiRoot.querySelector('#opt-gore').onchange = (event) => {
-    setSetting('gore', event.target.checked);
-  };
+  uiRoot.querySelectorAll('.option-toggle input').forEach((input) => {
+    input.onchange = (event) => {
+      setSetting(event.target.dataset.key, event.target.checked);
+      audio.playUi('click');
+    };
+  });
 
   const volumeSlider = uiRoot.querySelector('#opt-volume');
   const volumeLabel = uiRoot.querySelector('#volume-label');
@@ -112,6 +155,8 @@ function showStartMenu() {
     refreshVolumeUI();
     if (!settings.muted) audio.playUi('click');
   };
+
+  uiRoot.querySelector('#btn-back').onclick = onBack;
 }
 
 /* ------------------------------------------------- montagem customizada */
@@ -204,6 +249,10 @@ async function launchMatch(board, withReveal) {
   gameView = new GameView(canvasContainer, game, {
     onStatusChange: handleStatusChange,
     onPromotionNeeded: askPromotion,
+    onHoverPiece: showVeteranTooltip,
+    onReplayStart: () => showReplayOverlay(true),
+    onReplayCaption: setReplayCaption,
+    onReplayEnd: () => showReplayOverlay(false),
   });
   gameView.focusOnSide(game.turn);
 
@@ -222,6 +271,7 @@ function renderHUD(game) {
     <div class="hud-turn" id="hud-turn"></div>
     <div class="hud-check" id="hud-check">Xeque!</div>
     <button class="volume-button" id="hud-mute" type="button" title="Ligar/desligar som"></button>
+    <button class="volume-button" id="hud-options" type="button" title="Opções">⚙</button>
     <button class="btn btn-ghost btn-small" id="hud-menu">Menu</button>
   `;
   uiRoot.appendChild(hud);
@@ -239,8 +289,82 @@ function renderHUD(game) {
     muteButton.textContent = settings.muted ? '🔇' : '🔊';
   };
 
+  hud.querySelector('#hud-options').onclick = () =>
+    showOptions(() => {
+      // Volta para a partida em andamento, sem reiniciar nada.
+      resetUI({ interactive: false });
+      renderHUD(game);
+    });
+
   hud.querySelector('#hud-menu').onclick = showStartMenu;
   updateHUD(game);
+}
+
+/* ------------------------------------------- veteranos e replay final */
+
+const PIECE_NAME = {
+  p: 'Peão',
+  n: 'Cavalo',
+  b: 'Bispo',
+  r: 'Torre',
+  q: 'Rainha',
+  k: 'Rei',
+};
+
+let tooltipEl = null;
+
+// Passar o mouse numa peça que já capturou mostra a contagem de abates.
+function showVeteranTooltip(info) {
+  if (!info) {
+    tooltipEl?.remove();
+    tooltipEl = null;
+    return;
+  }
+
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'veteran-tip';
+    uiRoot.appendChild(tooltipEl);
+  }
+
+  const { piece, x, y } = info;
+  const kills = piece.kills ?? 0;
+  tooltipEl.innerHTML = `
+    <strong>${PIECE_NAME[piece.type]} veterano</strong>
+    <span>${kills} ${kills === 1 ? 'abate' : 'abates'}</span>
+  `;
+  tooltipEl.style.left = `${x + 16}px`;
+  tooltipEl.style.top = `${y + 16}px`;
+}
+
+let replayEl = null;
+
+function showReplayOverlay(visible) {
+  if (!visible) {
+    replayEl?.remove();
+    replayEl = null;
+    return;
+  }
+  replayEl = document.createElement('div');
+  replayEl.className = 'replay-overlay';
+  replayEl.innerHTML = `
+    <div class="replay-bar replay-top">Momentos da batalha</div>
+    <div class="replay-caption" id="replay-caption"></div>
+    <div class="replay-bar replay-bottom">clique para pular</div>
+  `;
+  uiRoot.appendChild(replayEl);
+}
+
+function setReplayCaption(text) {
+  const caption = document.getElementById('replay-caption');
+  if (!caption) return;
+  caption.textContent = text ?? '';
+  caption.classList.remove('is-visible');
+  if (text) {
+    // Reinicia a animação de entrada da legenda.
+    void caption.offsetWidth;
+    caption.classList.add('is-visible');
+  }
 }
 
 function updateHUD(game) {

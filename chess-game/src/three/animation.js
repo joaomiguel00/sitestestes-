@@ -1,15 +1,34 @@
 import * as THREE from 'three';
 
+// Escala global de tempo: 1 é normal, 0.45 é câmera lenta.
+// Como o tempo é acumulado quadro a quadro, mudar a escala no meio de uma
+// animação funciona sem saltos.
+let timeScale = 1;
+
+export function setTimeScale(value) {
+  timeScale = Math.max(0.05, value);
+}
+
+export function getTimeScale() {
+  return timeScale;
+}
+
 // Executa uma animação por quadro; resolve quando termina.
-export function animate(duration, onFrame) {
+// `scaled: false` ignora a câmera lenta (usado pela própria câmera).
+export function animate(duration, onFrame, { scaled = true } = {}) {
   return new Promise((resolve) => {
-    const start = performance.now();
+    let elapsed = 0;
+    let last = performance.now();
+
     function step(now) {
-      const t = Math.min(1, (now - start) / duration);
+      elapsed += (now - last) * (scaled ? timeScale : 1);
+      last = now;
+      const t = Math.min(1, elapsed / duration);
       onFrame(t);
       if (t < 1) requestAnimationFrame(step);
       else resolve();
     }
+
     requestAnimationFrame(step);
   });
 }

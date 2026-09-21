@@ -172,6 +172,22 @@ export function createMusic(engine) {
     nodes.droneFilter.frequency.setTargetAtTime(420 - intensity * 190, now, 3);
   }
 
+  // Xeque: a trilha fecha o filtro e sobe a voz dissonante.
+  function setAlert(on) {
+    if (!nodes || !engine.ctx) return;
+    const now = engine.ctx.currentTime;
+    if (nodes.fromSample) {
+      nodes.droneFilter.frequency.setTargetAtTime(on ? 1800 : 12000 - intensity * 9000, now, 0.3);
+      return;
+    }
+    nodes.tensionGain.gain.setTargetAtTime(on ? 0.3 : intensity * 0.12, now, 0.4);
+    nodes.droneFilter.frequency.setTargetAtTime(
+      on ? 190 : 420 - intensity * 190,
+      now,
+      0.4,
+    );
+  }
+
   function setRain(value) {
     rainLevel = Math.min(1, Math.max(0, value));
     if (!nodes || !engine.ctx) return;
@@ -199,5 +215,5 @@ export function createMusic(engine) {
     nodes = null;
   }
 
-  return { start, stop, setIntensity, setRain, get playing() { return !!nodes; } };
+  return { start, stop, setIntensity, setRain, setAlert, get playing() { return !!nodes; } };
 }
