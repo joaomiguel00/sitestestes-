@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createBoardLights } from './boardLights.js';
 
 export const SQUARE_SIZE = 1;
 
@@ -120,6 +121,8 @@ export function createBoardScene(container) {
   border.position.y = -0.14;
   boardGroup.add(border);
 
+  const boardLights = createBoardLights(scene);
+
   function onResize() {
     if (!container.clientWidth || !container.clientHeight) return;
     camera.aspect = container.clientWidth / container.clientHeight;
@@ -146,5 +149,5 @@ export function createBoardScene(container) {
     emberRim,
   };
 
-  return { scene, camera, renderer, controls, boardGroup, tiles, lights, onResize, dispose };
+  return { scene, camera, renderer, controls, boardGroup, tiles, lights, boardLights, onResize, dispose };
 }

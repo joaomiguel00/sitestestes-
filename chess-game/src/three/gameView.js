@@ -39,6 +39,7 @@ export class GameView {
     this.boardGroup = scene.boardGroup;
     this.tiles = scene.tiles;
     this.lights = scene.lights;
+    this.boardLights = scene.boardLights;
     this._disposeScene = scene.dispose;
     this._onResize = scene.onResize;
 
@@ -74,6 +75,7 @@ export class GameView {
       camera: this.camera,
       controls: this.controls,
       lights: this.lights,
+      boardLights: this.boardLights,
     });
 
     // Luz vermelha que pulsa sobre o rei em xeque.
@@ -121,6 +123,11 @@ export class GameView {
 
     this.environment.update(dt);
     this._updateAliveMotion();
+    // Fita de LED: destaca o lado de quem joga (ou de quem venceu) e pulsa no xeque.
+    this.boardLights.update(dt, {
+      turn: this.game.isGameOver() && this.game.winner ? this.game.winner : this.game.turn,
+      check: this.game.status === STATUS.CHECK,
+    });
 
     // Relógio: desconta o tempo do jogador ativo e encerra por tempo esgotado.
     if (this.clock?.enabled && !this.replaying) {

@@ -5,7 +5,7 @@ import { GLOW_COLOR } from './combat.js';
 
 // Cena cinematográfica de vitória: escurece o tabuleiro, acende um foco sobre
 // a peça vencedora e gira a câmera lentamente ao redor dela.
-export function createVictoryScene({ scene, camera, controls, lights }) {
+export function createVictoryScene({ scene, camera, controls, lights, boardLights }) {
   const spot = new THREE.PointLight(0xffffff, 0, 9, 2);
   spot.visible = false;
   scene.add(spot);
@@ -49,6 +49,7 @@ export function createVictoryScene({ scene, camera, controls, lights }) {
         lights.hemi.intensity = dim.hemi * (1 - 0.82 * e);
         lights.key.intensity = dim.key * (1 - 0.7 * e);
         lights.fill.intensity = dim.fill * (1 - 0.75 * e);
+        boardLights?.setLevel(1 - 0.75 * e);
         spot.intensity = 26 * e;
         camera.position.lerpVectors(fromCam, closeUp, e);
         controls.target.lerpVectors(fromTarget, target, e);
@@ -88,6 +89,7 @@ export function createVictoryScene({ scene, camera, controls, lights }) {
       lights.fill.intensity = base.fill;
       base = null;
     }
+    boardLights?.setLevel(1);
     spot.visible = false;
     spot.intensity = 0;
     controls.enabled = true;
