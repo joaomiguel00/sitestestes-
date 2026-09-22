@@ -1,25 +1,31 @@
 import * as THREE from 'three';
 import { animate, easeInOut } from './animation.js';
 
-// Caminhada procedural para peças .glb com partes nomeadas. Qualquer modelo
-// que siga esta nomenclatura ganha passos, braços, balanço e inclinação; os
-// que não seguem continuam só deslizando (quem chama cuida do fallback).
+// Caminhada procedural para peças .glb. Modelos com pernas nomeadas ganham
+// passos de verdade (pernas, braços, balanço, inclinação); modelos de malha
+// única que também devem andar recebem um "bamboleio" só do corpo. Peças sem
+// rig continuam deslizando (quem chama cuida do fallback).
 export const PART_NAMES = {
   legs: { L: ['Leg_L'], R: ['Leg_R'] },
-  feet: { L: ['Foot_L'], R: ['Foot_R'] },
+  // Partes que acompanham a perna / o braço do mesmo lado.
+  legFollowers: { L: ['Foot_L', 'Greave_L'], R: ['Foot_R', 'Greave_R'] },
   arms: { L: ['Arm_L', 'Arm_L_Bent'], R: ['Arm_R', 'Arm_R_Bent'] },
-  hands: { L: ['Hand_L'], R: ['Hand_R'] },
+  armFollowers: { L: ['Hand_L', 'Cuff_L'], R: ['Hand_R', 'Cuff_R'] },
   shoulders: { L: ['Shoulder_L'], R: ['Shoulder_R'] },
-  // Itens segurados acompanham a mão do mesmo lado.
-  held: { L: ['Holy_Orb', 'Orb', 'Shield'], R: ['Staff', 'Staff_Gem', 'Sword', 'Weapon'] },
+  // Itens segurados: nome exato ou prefixo ("Sword" pega Sword_Blade, Sword_Guard...).
+  held: {
+    L: ['Holy_Orb', 'Golden_Orb', 'Orb', 'Shield'],
+    R: ['Staff', 'Scepter', 'Sword', 'Weapon'],
+  },
 };
+
+// Amplitudes padrão (sobrescrevíveis por modelo).
+const LIMB_TUNING = { legSwing: 0.55, armSwing: 0.32, lean: 0.12, bob: 0.035, roll: 0.035 };
+// Sem pernas: o corpo balança de um lado para o outro e dá um pulinho por passo.
+const WADDLE_TUNING = { lean: 0.1, bob: 0.05, roll: 0.15 };
 
 const WALK = {
   stride: 0.75, // distância no tabuleiro por passo (1 casa = 1)
-  legSwing: 0.55, // rad
-  armSwing: 0.32, // rad
-  lean: 0.12, // rad, inclinação para a frente
-  bob: 0.035, // sobe-e-desce do corpo, no espaço do modelo
   baseMs: 260,
   msPerUnit: 190,
   minMs: 380,
@@ -29,6 +35,20 @@ const WALK = {
 
 // corpo -> rig. WeakMap em vez de userData: userData é copiado via JSON.
 const rigs = new WeakMap();
+
+function findAll(root, names) {
+  return names.map((name) => findByNames(root, [name])).filter(Boolean);
+}
+
+// Itens segurados pelo nome exato ou por prefixo "Nome_".
+function findHeld(root, names) {
+  const found = [];
+  root.traverse((obj) => {
+    if (!obj.isMesh) return;
+    if (names.some((name) => obj.name === name || obj.name.startsWith(`${name}_`))) found.push(obj);
+  });
+  return found;
+}
 
 function findByNames(root, names) {
   for (const name of names) {
@@ -70,36 +90,40 @@ function makePivot(part, joint, followers) {
 }
 
 // model: raiz do glTF (ainda sem pai). body: nó que recebe giro, inclinação e
-// balanço do corpo inteiro. Devolve null se o modelo não tiver pernas nomeadas.
-export function rigWalker(model, body) {
+// balanço do corpo inteiro. tuning: amplitudes próprias do modelo.
+// Com pernas nomeadas monta os membros; sem elas, o rig só bamboleia o corpo.
+export function rigWalker(model, body, tuning = {}) {
   const legL = findByNames(model, PART_NAMES.legs.L);
   const legR = findByNames(model, PART_NAMES.legs.R);
-  if (!legL || !legR) return null;
+  const hasLegs = !!(legL && legR);
 
-  model.updateMatrixWorld(true);
+  const rig = { body, legL: null, legR: null, armL: null, armR: null, waddle: !hasLegs };
 
-  const buildSide = (side) => {
-    const leg = side === 'L' ? legL : legR;
-    const legPivot = makePivot(leg, topCenter(leg), [findByNames(model, PART_NAMES.feet[side])]);
+  if (hasLegs) {
+    model.updateMatrixWorld(true);
+    const buildSide = (side) => {
+      const leg = side === 'L' ? legL : legR;
+      const legPivot = makePivot(leg, topCenter(leg), findAll(model, PART_NAMES.legFollowers[side]));
 
-    const arm = findByNames(model, PART_NAMES.arms[side]);
-    if (!arm) return { leg: legPivot, arm: null };
+      const arm = findByNames(model, PART_NAMES.arms[side]);
+      if (!arm) return { leg: legPivot, arm: null };
 
-    const shoulder = findByNames(model, PART_NAMES.shoulders[side]);
-    const followers = [
-      findByNames(model, PART_NAMES.hands[side]),
-      ...PART_NAMES.held[side].map((name) => model.getObjectByName(name)),
-    ];
-    const armPivot = makePivot(arm, shoulder ? centerOf(shoulder) : topCenter(arm), followers);
-    return { leg: legPivot, arm: armPivot };
-  };
+      const shoulder = findByNames(model, PART_NAMES.shoulders[side]);
+      const followers = [
+        ...findAll(model, PART_NAMES.armFollowers[side]),
+        ...findHeld(model, PART_NAMES.held[side]),
+      ];
+      const armPivot = makePivot(arm, shoulder ? centerOf(shoulder) : topCenter(arm), followers);
+      return { leg: legPivot, arm: armPivot };
+    };
+    const left = buildSide('L');
+    const right = buildSide('R');
+    Object.assign(rig, { legL: left.leg, legR: right.leg, armL: left.arm, armR: right.arm });
+  }
 
-  const left = buildSide('L');
-  const right = buildSide('R');
+  rig.tuning = { ...LIMB_TUNING, ...(hasLegs ? {} : WADDLE_TUNING), ...tuning };
   // Giro (Y) primeiro, inclinação (X) depois: a peça se inclina para onde anda.
   body.rotation.order = 'YXZ';
-
-  const rig = { body, legL: left.leg, legR: right.leg, armL: left.arm, armR: right.arm };
   rigs.set(body, rig);
   return rig;
 }
@@ -132,18 +156,21 @@ function applyPose(rig, { t, p, steps, yaw }) {
   const turn = smoothstep(0, 0.16, t) * (1 - smoothstep(0.84, 1, t));
   const phase = steps * Math.PI * p;
   const swing = Math.sin(phase) * envelope;
+  const tune = rig.tuning;
 
   // Pernas alternadas; braços opostos às pernas, como num andar natural.
-  rig.legL.rotation.x = -swing * WALK.legSwing;
-  rig.legR.rotation.x = swing * WALK.legSwing;
-  if (rig.armL) rig.armL.rotation.x = swing * WALK.armSwing;
-  if (rig.armR) rig.armR.rotation.x = -swing * WALK.armSwing;
+  if (rig.legL) rig.legL.rotation.x = -swing * tune.legSwing;
+  if (rig.legR) rig.legR.rotation.x = swing * tune.legSwing;
+  if (rig.armL) rig.armL.rotation.x = swing * tune.armSwing;
+  if (rig.armR) rig.armR.rotation.x = -swing * tune.armSwing;
 
-  // Corpo: vira para a direção do trajeto, inclina para a frente e balança,
-  // mais alto com as pernas retas e mais baixo no impacto do pé.
+  // Corpo: vira para a direção do trajeto, inclina para a frente, pende para o
+  // lado do pé de apoio e balança — mais alto com as pernas retas e mais
+  // baixo no impacto do pé.
   rig.body.rotation.y = yaw * turn;
-  rig.body.rotation.x = WALK.lean * envelope;
-  rig.body.position.y = Math.abs(Math.cos(phase)) * WALK.bob * envelope;
+  rig.body.rotation.x = tune.lean * envelope;
+  rig.body.rotation.z = swing * tune.roll;
+  rig.body.position.y = Math.abs(Math.cos(phase)) * tune.bob * envelope;
 }
 
 export function resetPose(rig) {
@@ -156,8 +183,13 @@ export function resetPose(rig) {
 function settle(rig) {
   const limbs = [rig.legL, rig.legR, rig.armL, rig.armR].filter(Boolean);
   const from = limbs.map((limb) => limb.rotation.x);
-  const body = { yaw: rig.body.rotation.y, lean: rig.body.rotation.x, bob: rig.body.position.y };
-  const residual = Math.max(...from.map(Math.abs), Math.abs(body.yaw), Math.abs(body.lean), Math.abs(body.bob));
+  const body = {
+    yaw: rig.body.rotation.y,
+    lean: rig.body.rotation.x,
+    roll: rig.body.rotation.z,
+    bob: rig.body.position.y,
+  };
+  const residual = Math.max(0, ...from.map(Math.abs), ...Object.values(body).map(Math.abs));
   if (residual < 1e-3) {
     resetPose(rig);
     return Promise.resolve();
@@ -169,6 +201,7 @@ function settle(rig) {
     });
     rig.body.rotation.y = body.yaw * k;
     rig.body.rotation.x = body.lean * k;
+    rig.body.rotation.z = body.roll * k;
     rig.body.position.y = body.bob * k;
   }).then(() => resetPose(rig));
 }

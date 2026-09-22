@@ -3,12 +3,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WHITE } from '../chess/moveGen.js';
 import { PAWN_GLB_BASE64 } from './pawnData.js';
 import { BISHOP_GLB_BASE64 } from './bishopData.js';
+import { QUEEN_GLB_BASE64 } from './queenData.js';
+import { KING_GLB_BASE64 } from './kingData.js';
 import { rigWalker } from './pieceAnimator.js';
 
 // Modelos .glb embutidos em base64 (o host de artifact não serve .glb).
-// Cada um é carregado uma vez e clonado por peça. `height` é a altura do
-// modelo em unidades próprias; `target`, a altura desejada antes do
-// PIECE_SCALE (casando com a peça procedural equivalente).
+// Cada um é carregado uma vez e clonado por peça. `scale` leva as unidades do
+// modelo para o espaço da peça (antes do PIECE_SCALE aplicado depois).
 
 const RUIN_TINT = 0x4a4658;
 const RUIN_STONE = 0x1b1922;
@@ -39,35 +40,60 @@ function namedRecolor(material) {
   material.roughness = Math.max(material.roughness ?? 0.5, 0.7);
 }
 
-// O cajado vira uma parte marcada ('staff') para o combate: o feixe sai dele
-// no ataque e ele se parte na morte do bispo.
-function tagStaff(model) {
-  const staff = model.getObjectByName('Staff');
-  if (!staff) return;
-  const gem = model.getObjectByName('Staff_Gem');
+// Junta partes soltas num grupo marcado (userData.part), que o combate usa:
+// o cajado do bispo solta o feixe e se parte; a coroa da rainha cai e rola.
+function groupParts(model, { name, part, test }) {
+  const members = [];
+  model.traverse((obj) => {
+    if (obj.isMesh && test(obj.name)) members.push(obj);
+  });
+  if (!members.length) return;
   model.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  members.forEach((member) => box.expandByObject(member));
+  const parent = members[0].parent;
   const group = new THREE.Group();
-  group.name = 'Staff_Group';
-  group.userData.part = 'staff';
-  staff.parent.add(group);
-  const center = new THREE.Box3().setFromObject(staff).getCenter(new THREE.Vector3());
-  group.position.copy(staff.parent.worldToLocal(center));
+  group.name = name;
+  group.userData.part = part;
+  parent.add(group);
+  group.position.copy(parent.worldToLocal(box.getCenter(new THREE.Vector3())));
   group.updateMatrixWorld(true);
-  group.attach(staff);
-  if (gem) group.attach(gem);
+  members.forEach((member) => group.attach(member));
 }
 
+const tagStaff = (model) =>
+  groupParts(model, { name: 'Staff_Group', part: 'staff', test: (n) => n === 'Staff' || n === 'Staff_Gem' });
+const tagCrown = (model) =>
+  groupParts(model, { name: 'Crown_Group', part: 'crown', test: (n) => /^Crown_(Ring|Spike_\d+)$/.test(n) });
+
+// Bispo, rainha e rei vêm do mesmo sistema de unidades: uma escala só mantém
+// as proporções que o autor desenhou (rei > rainha > bispo).
+const CHIBI_SCALE = 1.28 / 1.59;
+
+// `walk`: a peça dá passos ao se mover (amplitudes próprias opcionais).
 const MODELS = {
-  // Peão boneco: malha única texturizada, exportado em Z-up.
-  p: { data: PAWN_GLB_BASE64, height: 1.282, target: 0.94, zUp: true, recolor: tintRecolor },
-  // Bispo chibi: partes nomeadas (pernas, braços, cajado...), Y-up.
-  b: {
-    data: BISHOP_GLB_BASE64,
-    height: 1.59,
-    target: 1.28,
+  // Peão boneco: malha única texturizada, exportado em Z-up. Sem pernas
+  // separadas, anda bamboleando o corpo.
+  p: { data: PAWN_GLB_BASE64, scale: 0.94 / 1.282, zUp: true, recolor: tintRecolor, walk: {} },
+  // Bispo chibi: pernas, braços e cajado nomeados.
+  b: { data: BISHOP_GLB_BASE64, scale: CHIBI_SCALE, flat: true, recolor: namedRecolor, setup: tagStaff, walk: {} },
+  // Rainha chibi: o braço do cetro vai erguido, então balança menos.
+  q: {
+    data: QUEEN_GLB_BASE64,
+    scale: CHIBI_SCALE,
     flat: true,
     recolor: namedRecolor,
-    setup: tagStaff,
+    setup: tagCrown,
+    walk: { armSwing: 0.18 },
+  },
+  // Rei chibi: modelado olhando para -Z; o giro de 180° o põe de frente (+Z).
+  k: {
+    data: KING_GLB_BASE64,
+    scale: CHIBI_SCALE,
+    yaw: Math.PI,
+    flat: true,
+    recolor: namedRecolor,
+    walk: { armSwing: 0.2 },
   },
 };
 
@@ -142,12 +168,13 @@ export function makePieceFromGLB(type, color) {
   const body = new THREE.Group();
   body.name = 'Body';
   // Montado com o glTF ainda sem pai, para as juntas saírem no espaço do modelo.
-  rigWalker(model, body);
+  if (cfg.walk) rigWalker(model, body, cfg.walk);
   cfg.setup?.(model);
 
   const oriented = new THREE.Group();
   if (cfg.zUp) oriented.rotation.x = -Math.PI / 2;
-  oriented.scale.setScalar(cfg.target / cfg.height);
+  if (cfg.yaw) oriented.rotation.y = cfg.yaw;
+  oriented.scale.setScalar(cfg.scale);
   oriented.add(model);
   body.add(oriented);
 
