@@ -8,6 +8,8 @@ const defaults = {
   // Volume geral (0 a 1) e mudo.
   volume: 0.7,
   muted: false,
+  // Relógio de xadrez: minutos por jogador. 0 = desativado (sem limite).
+  clockMinutes: 0,
 };
 
 function load() {

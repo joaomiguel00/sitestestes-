@@ -11,9 +11,11 @@ import { createSpecialFx } from './specialFx.js';
 import { createReplay, scoreMoment, pickHighlights } from './replay.js';
 import { applyIdleMotion, idlePhase } from './idleMotion.js';
 import { applyVeteranMark } from './pieceModels.js';
-import { animate, easeInOut, easeOutBack } from './animation.js';
-import { cloneBoard, findKing } from '../chess/moveGen.js';
-import { STATUS } from '../chess/game.js';
+import { createVictoryScene } from './victoryScene.js';
+import { animate, easeInOut, easeOutBack, wait, setTimeScale } from './animation.js';
+import { cloneBoard, findKing, other } from '../chess/moveGen.js';
+import { STATUS, ChessGame } from '../chess/game.js';
+import { settings } from '../settings.js';
 import { audio } from '../audio/index.js';
 
 // A partir de quantas capturas o clima chega ao ponto mais sombrio (nevasca).
@@ -35,8 +37,17 @@ export class GameView {
     this.controls = scene.controls;
     this.boardGroup = scene.boardGroup;
     this.tiles = scene.tiles;
+    this.lights = scene.lights;
     this._disposeScene = scene.dispose;
     this._onResize = scene.onResize;
+
+    // Tabuleiro inicial guardado para o replay reproduzir do zero.
+    this.initialBoard = cloneBoard(game.board);
+    // Relógio opcional, fornecido por quem cria a partida.
+    this.clock = callbacks.clock ?? null;
+    this.replaying = false;
+    this._replayPromotion = 'q';
+    this._musicPhase = null;
 
     this.highlights = createHighlightLayer(this.scene);
     this.cameraRig = createCameraRig(this.camera, this.controls);
@@ -56,6 +67,12 @@ export class GameView {
       controls: this.controls,
       cinematic: this.cinematic,
       audio,
+    });
+    this.victory = createVictoryScene({
+      scene: this.scene,
+      camera: this.camera,
+      controls: this.controls,
+      lights: this.lights,
     });
 
     // Luz vermelha que pulsa sobre o rei em xeque.
@@ -103,6 +120,17 @@ export class GameView {
 
     this.environment.update(dt);
     this._updateAliveMotion();
+
+    // Relógio: desconta o tempo do jogador ativo e encerra por tempo esgotado.
+    if (this.clock?.enabled && !this.replaying) {
+      this.clock.tick();
+      this.callbacks.onClockTick?.(this.clock);
+      if (this.clock.flagged && !this._timedOut && !this.game.isGameOver()) {
+        this._timedOut = true;
+        this._handleTimeout(this.clock.flagged);
+      }
+    }
+
     this.controls.update();
 
     // Tremor de câmera no impacto: o deslocamento é aplicado só para este
@@ -170,6 +198,26 @@ export class GameView {
     const captured = this.game.captured.w.length + this.game.captured.b.length;
     this.environment.setProgress(captured / MOOD_FULL_AT);
     audio.setMood(this.environment.progress, this.environment.rainLevel);
+    this._updateMusicPhase();
+  }
+
+  // Trilha dinâmica: calma no começo, tensa no xeque, épica na reta final.
+  _updateMusicPhase() {
+    const inCheck =
+      this.game.status === STATUS.CHECK || this.game.status === STATUS.CHECKMATE;
+    let total = 0;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) if (this.game.board[r][c]) total++;
+    }
+    const phase = inCheck ? 'tense' : total <= 8 ? 'epic' : 'calm';
+    if (phase !== this._musicPhase) {
+      this._musicPhase = phase;
+      audio.setMusicPhase?.(phase);
+    }
+  }
+
+  startClock() {
+    this.clock?.start(this.game.turn);
   }
 
   _buildPieces() {
@@ -286,7 +334,7 @@ export class GameView {
   }
 
   _onClick(event) {
-    if (this.busy || this.disposed || this.game.isGameOver()) return;
+    if (this.busy || this.disposed || this.replaying || this.game.isGameOver()) return;
     if (event.button !== undefined && event.button !== 0) return;
 
     const square = this._squareAtPointer(event);
@@ -338,7 +386,9 @@ export class GameView {
 
     let promotionType;
     if (move.promotion) {
-      promotionType = await this.callbacks.onPromotionNeeded?.(move);
+      promotionType = this.replaying
+        ? this._replayPromotion
+        : await this.callbacks.onPromotionNeeded?.(move);
       if (!promotionType) promotionType = 'q';
     }
 
@@ -437,14 +487,16 @@ export class GameView {
       await ceremony;
     }
 
-    this._recordMoment({
-      snapshot,
-      move,
-      movingPiece,
-      victimPiece,
-      victimSquare,
-      promotionType,
-    });
+    if (!this.replaying) {
+      this._recordMoment({
+        snapshot,
+        move,
+        movingPiece,
+        victimPiece,
+        victimSquare,
+        promotionType,
+      });
+    }
 
     this._renderHighlights();
     this._updateMood();
@@ -463,20 +515,94 @@ export class GameView {
           attackerPos: squareToWorld(move.to.row, move.to.col),
         });
       }
-      audio.playUi('victory');
-    }
-
-    if (this.game.isGameOver()) {
-      await this._playHighlights();
     }
 
     this.callbacks.onStatusChange?.(this.game);
 
-    if (!this.game.isGameOver()) {
+    if (this.game.isGameOver()) {
+      if (!this.replaying) {
+        this.clock?.stop();
+        const winner = this.game.winner;
+        await this._finish({
+          kind: this.game.status,
+          winner,
+          matingSquare:
+            this.game.status === STATUS.CHECKMATE && winner
+              ? { row: move.to.row, col: move.to.col }
+              : null,
+        });
+      }
+    } else if (!this.replaying) {
+      this.clock?.switchTo(this.game.turn);
       await this.cameraRig.rotateToSide(this.game.turn);
     }
 
     this.busy = false;
+  }
+
+  // Encerramento da partida: som de vitória, cena cinematográfica (quando há
+  // uma peça que deu o mate) e entrega do resultado para a interface.
+  async _finish(result) {
+    audio.setMusicPhase?.('epic');
+    if (result.winner) audio.playUi('victory');
+    if (result.matingSquare) {
+      const mesh = this.pieces.get(key(result.matingSquare.row, result.matingSquare.col));
+      await this.victory.play({ pieceMesh: mesh, winnerColor: result.winner });
+    }
+    await this.callbacks.onGameOver?.(result);
+  }
+
+  // Tempo esgotado: o jogador da cor `color` perde na hora.
+  _handleTimeout(color) {
+    this.busy = true;
+    this.clock?.stop();
+    this.selected = null;
+    this.legalMoves = [];
+    this.highlights.clear();
+    this._finish({ kind: 'timeout', winner: other(color), loser: color, matingSquare: null });
+  }
+
+  // Reproduz a partida inteira do início ao fim, reusando as animações.
+  async runReplay({
+    getSpeed = () => 1,
+    isPaused = () => false,
+    isStopped = () => false,
+    onProgress,
+    onDone,
+  } = {}) {
+    const moves = this.game.history.slice();
+    const savedCinematic = settings.cinematic;
+    settings.cinematic = false; // sem câmera lenta de captura durante o replay
+    this.victory.restore();
+
+    this.replaying = true;
+    this.busy = true;
+    this.selected = null;
+    this.legalMoves = [];
+    this.highlights.clear();
+    this.decals.clear();
+
+    this.game = new ChessGame(cloneBoard(this.initialBoard));
+    this._buildPieces();
+    this._musicPhase = null;
+    this._updateMood();
+    this.cameraRig.snapToSide(this.game.turn);
+
+    for (let i = 0; i < moves.length; i++) {
+      if (this.disposed || isStopped()) break;
+      while (isPaused() && !this.disposed && !isStopped()) await wait(120);
+      if (this.disposed || isStopped()) break;
+      setTimeScale(Math.max(0.1, getSpeed()));
+      this._replayPromotion = moves[i].promotion ? moves[i].promotionType || 'q' : undefined;
+      await this._playMove(moves[i]);
+      onProgress?.(i + 1, moves.length);
+    }
+
+    setTimeScale(1);
+    settings.cinematic = savedCinematic;
+    this.replaying = false;
+    this.busy = false;
+    onDone?.();
   }
 
   // Guarda o lance caso ele tenha valor de destaque (captura, xeque,
@@ -547,6 +673,7 @@ export class GameView {
     this.combat.dispose();
     this.specialFx.dispose();
     this.replay.dispose();
+    this.victory.dispose();
     this.decals.clear();
     this.environment.dispose();
     this._disposeScene();

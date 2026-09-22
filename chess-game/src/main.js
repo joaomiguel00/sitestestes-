@@ -4,6 +4,9 @@ import { ChessGame, createStandardBoard, STATUS } from './chess/game.js';
 import { mergeBoards, kingIsInCheck } from './chess/setup.js';
 import { GameView } from './three/gameView.js';
 import { renderSetupUI } from './ui/setupUI.js';
+import { createChat } from './ui/chat.js';
+import { createClock, formatClock } from './clock.js';
+import { computeTitles } from './achievements.js';
 import { settings, setSetting } from './settings.js';
 import { audio } from './audio/index.js';
 import { createCaptureTester } from './debug.js';
@@ -17,7 +20,10 @@ const TEAM_NAME = {
 };
 
 let gameView = null;
+let chat = null;
 let customBoards = { [WHITE]: null, [BLACK]: null };
+
+const teamName = (color) => (color === WHITE ? 'Ordem' : 'Ruína');
 
 function resetUI({ interactive = true } = {}) {
   uiRoot.innerHTML = '';
@@ -25,6 +31,10 @@ function resetUI({ interactive = true } = {}) {
 }
 
 function destroyMatch() {
+  if (chat) {
+    chat.dispose();
+    chat = null;
+  }
   if (gameView) {
     gameView.dispose();
     gameView = null;
@@ -119,10 +129,37 @@ function showOptions(onBack) {
           />
         </div>
 
+        <div class="option-clock">
+          <span class="option-text"><strong>Relógio de xadrez</strong><em>Tempo por jogador; ao zerar, perde a partida</em></span>
+          <div class="clock-choices" id="clock-choices">
+            ${[
+              { v: 0, label: 'Off' },
+              { v: 5, label: '5 min' },
+              { v: 10, label: '10 min' },
+              { v: 15, label: '15 min' },
+            ]
+              .map(
+                (o) =>
+                  `<button type="button" class="clock-choice ${settings.clockMinutes === o.v ? 'is-on' : ''}" data-min="${o.v}">${o.label}</button>`,
+              )
+              .join('')}
+          </div>
+        </div>
+
         <button class="btn btn-primary btn-wide" id="btn-back">Voltar</button>
       </div>
     </div>
   `;
+
+  uiRoot.querySelectorAll('.clock-choice').forEach((button) => {
+    button.onclick = () => {
+      setSetting('clockMinutes', Number(button.dataset.min));
+      uiRoot
+        .querySelectorAll('.clock-choice')
+        .forEach((b) => b.classList.toggle('is-on', b === button));
+      audio.playUi('click');
+    };
+  });
 
   uiRoot.querySelectorAll('.option-toggle input').forEach((input) => {
     input.onchange = (event) => {
@@ -287,10 +324,14 @@ async function launchMatch(board, withReveal) {
   audio.startMusic();
 
   const game = new ChessGame(board);
+  const clock = createClock(settings.clockMinutes);
   gameView = new GameView(canvasContainer, game, {
+    clock,
     onStatusChange: handleStatusChange,
     onPromotionNeeded: askPromotion,
     onHoverPiece: showVeteranTooltip,
+    onClockTick: updateClockHUD,
+    onGameOver: showVictory,
     onReplayStart: () => showReplayOverlay(true),
     onReplayCaption: setReplayCaption,
     onReplayEnd: () => showReplayOverlay(false),
@@ -298,8 +339,11 @@ async function launchMatch(board, withReveal) {
   gameView.focusOnSide(game.turn);
 
   renderHUD(game);
+  chat = createChat({ root: uiRoot, getTurn: () => game.turn, teamName });
 
   if (withReveal) await gameView.playRevealAnimation();
+
+  gameView.startClock();
 
   // Expõe o estado para depuração no console do navegador.
   window.xadrez = { game, gameView, audio, testarCaptura: createCaptureTester(() => window.xadrez) };
@@ -316,6 +360,18 @@ function renderHUD(game) {
     <button class="btn btn-ghost btn-small" id="hud-menu">Menu</button>
   `;
   uiRoot.appendChild(hud);
+
+  // Relógio: dois mostradores, um por exército, só quando ativado.
+  if (gameView?.clock?.enabled) {
+    const clocks = document.createElement('div');
+    clocks.className = 'clocks panel';
+    clocks.innerHTML = `
+      <div class="clock-face team-w" id="clock-w"><span class="clock-name">Ordem</span><span class="clock-time" id="clock-time-w"></span></div>
+      <div class="clock-face team-b" id="clock-b"><span class="clock-name">Ruína</span><span class="clock-time" id="clock-time-b"></span></div>
+    `;
+    uiRoot.appendChild(clocks);
+    updateClockHUD(gameView.clock);
+  }
 
   const controls = document.createElement('div');
   controls.className = 'hint panel';
@@ -420,33 +476,128 @@ function updateHUD(game) {
   }
 }
 
-function handleStatusChange(game) {
-  updateHUD(game);
-
-  if (!game.isGameOver()) return;
-
-  const messages = {
-    [STATUS.CHECKMATE]: `Xeque-mate! ${TEAM_NAME[game.winner]} vence.`,
-    [STATUS.STALEMATE]: 'Afogamento — empate.',
-    [STATUS.DRAW_REPETITION]: 'Empate por repetição tripla da posição.',
-    [STATUS.DRAW_50]: 'Empate pela regra dos 50 lances.',
-  };
-
-  showEndModal(messages[game.status]);
+function updateClockHUD(clock) {
+  if (!clock?.enabled) return;
+  for (const color of [WHITE, BLACK]) {
+    const timeEl = document.getElementById(`clock-time-${color}`);
+    if (!timeEl) continue;
+    const remaining = clock.getRemaining(color);
+    timeEl.textContent = formatClock(remaining);
+    const face = document.getElementById(`clock-${color}`);
+    if (face) {
+      face.classList.toggle('is-active', clock.active === color && clock.running);
+      face.classList.toggle('is-low', remaining <= 60 && remaining > 0);
+      face.classList.toggle('is-out', remaining <= 0);
+    }
+  }
 }
 
-function showEndModal(message) {
+function handleStatusChange(game) {
+  updateHUD(game);
+}
+
+const KIND_TITLE = {
+  checkmate: 'Xeque-mate!',
+  timeout: 'Tempo esgotado!',
+  stalemate: 'Afogamento',
+  'draw-repetition': 'Empate por repetição',
+  'draw-50move': 'Empate (regra dos 50)',
+};
+
+// Cena de vitória: chamada pelo gameView após a cinematografia 3D do mate.
+function showVictory(result) {
+  const game = gameView.game;
+  const isDraw = !result.winner;
+  const titles = computeTitles(game, result);
+  const headline = isDraw ? 'Empate' : `${TEAM_NAME[result.winner]} vence`;
+  const sub = KIND_TITLE[result.kind] ?? 'Fim de partida';
+
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay panel';
+  overlay.className = `victory-overlay panel ${isDraw ? 'is-draw' : `team-${result.winner}`}`;
   overlay.innerHTML = `
-    <div class="modal">
-      <h2>Fim de partida</h2>
-      <p>${message}</p>
-      <button class="btn btn-primary" id="btn-newgame">Novo jogo</button>
+    <div class="victory-card">
+      <p class="victory-kind">${sub}</p>
+      <h1 class="victory-headline">${headline}</h1>
+      ${
+        titles.length
+          ? `<div class="victory-titles">${titles
+              .map(
+                (t) =>
+                  `<div class="victory-title"><span class="vt-icon">${t.icon}</span><span class="vt-body"><strong>${t.name}</strong><em>${t.desc}</em></span></div>`,
+              )
+              .join('')}</div>`
+          : ''
+      }
+      <div class="victory-actions">
+        <button class="btn btn-primary" id="vic-replay">Assistir Replay</button>
+        <button class="btn btn-secondary" id="vic-again">Jogar Novamente</button>
+        <button class="btn btn-ghost" id="vic-exit">Sair</button>
+      </div>
     </div>
   `;
   uiRoot.appendChild(overlay);
-  overlay.querySelector('#btn-newgame').onclick = showStartMenu;
+  overlay.querySelector('#vic-replay').onclick = () => {
+    overlay.remove();
+    startReplay(() => showVictory(result));
+  };
+  overlay.querySelector('#vic-again').onclick = showStartMenu;
+  // "Sair" apenas fecha a tela e deixa o tabuleiro final à mostra.
+  overlay.querySelector('#vic-exit').onclick = () => overlay.remove();
+}
+
+// Reproduz a partida inteira com controles de play/pause e velocidade.
+function startReplay(onExit) {
+  const state = { paused: false, speed: 1 };
+
+  const bar = document.createElement('div');
+  bar.className = 'replay-controls panel';
+  bar.innerHTML = `
+    <button class="btn btn-small" id="rp-play">⏸ Pausar</button>
+    <div class="rp-speeds">
+      ${[1, 2, 4].map((s) => `<button class="rp-speed ${s === 1 ? 'is-on' : ''}" data-speed="${s}">${s}x</button>`).join('')}
+    </div>
+    <div class="rp-progress"><span id="rp-count">0/0</span></div>
+    <button class="btn btn-ghost btn-small" id="rp-exit">Encerrar</button>
+  `;
+  uiRoot.appendChild(bar);
+
+  const playBtn = bar.querySelector('#rp-play');
+  playBtn.onclick = () => {
+    state.paused = !state.paused;
+    playBtn.textContent = state.paused ? '▶ Continuar' : '⏸ Pausar';
+  };
+  bar.querySelectorAll('.rp-speed').forEach((button) => {
+    button.onclick = () => {
+      state.speed = Number(button.dataset.speed);
+      bar.querySelectorAll('.rp-speed').forEach((b) => b.classList.toggle('is-on', b === button));
+    };
+  });
+
+  let finished = false;
+  function cleanup() {
+    if (finished) return;
+    finished = true;
+    bar.remove();
+  }
+  bar.querySelector('#rp-exit').onclick = () => {
+    // Encerra o replay: o loop percebe pela flag e para.
+    state.stopped = true;
+    state.paused = false;
+  };
+
+  gameView.runReplay({
+    getSpeed: () => state.speed,
+    isPaused: () => state.paused && !state.stopped,
+    isStopped: () => !!state.stopped,
+    onProgress: (i, total) => {
+      const count = bar.querySelector('#rp-count');
+      if (count) count.textContent = `${i}/${total}`;
+    },
+    onDone: () => {
+      cleanup();
+      onExit?.();
+    },
+  });
 }
 
 function askPromotion() {

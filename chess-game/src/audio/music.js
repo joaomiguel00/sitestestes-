@@ -7,6 +7,7 @@ export function createMusic(engine) {
   let drumTimer = null;
   let intensity = 0;
   let rainLevel = 0;
+  let phase = 'calm'; // calm | tense | epic
 
   function drum() {
     const ctx = engine.ctx;
@@ -46,9 +47,11 @@ export function createMusic(engine) {
 
   function scheduleDrum() {
     clearTimeout(drumTimer);
-    // Quanto pior a situação, mais apertado o compasso.
-    const interval = 2800 - intensity * 900 + (Math.random() - 0.5) * 200;
-    drumTimer = setTimeout(drum, interval);
+    // Quanto pior a situação, mais apertado o compasso; na fase épica os
+    // tambores aceleram de vez.
+    const epic = phase === 'epic' ? 700 : 0;
+    const interval = 2800 - intensity * 900 - epic + (Math.random() - 0.5) * 200;
+    drumTimer = setTimeout(drum, Math.max(500, interval));
   }
 
   // Com um arquivo em "music_loop", ele toca no lugar do bordão sintetizado.
@@ -138,6 +141,27 @@ export function createMusic(engine) {
     lfo.connect(lfoGain).connect(droneFilter.frequency);
     lfo.start();
 
+    // Camada épica: vozes uma oitava acima, brilhantes, que só entram na fase
+    // final da partida (crossfade pelo epicGain).
+    const epicGain = ctx.createGain();
+    epicGain.gain.value = 0;
+    epicGain.connect(bus);
+    const epicFilter = ctx.createBiquadFilter();
+    epicFilter.type = 'lowpass';
+    epicFilter.frequency.value = 2400;
+    epicFilter.connect(epicGain);
+    const epicVoices = [ROOT * 2, ROOT * 3, ROOT * 4.004].map((freq, index) => {
+      const osc = ctx.createOscillator();
+      osc.type = index === 0 ? 'triangle' : 'sawtooth';
+      osc.frequency.value = freq;
+      osc.detune.value = (index - 1) * 7;
+      const g = ctx.createGain();
+      g.gain.value = index === 0 ? 0.18 : 0.1;
+      osc.connect(g).connect(epicFilter);
+      osc.start();
+      return osc;
+    });
+
     // Chuva: ruído filtrado em loop, silencioso até o clima virar.
     const rain = ctx.createBufferSource();
     rain.buffer = engine.noiseBuffer;
@@ -153,7 +177,7 @@ export function createMusic(engine) {
     rain.connect(rainHigh).connect(rainLow).connect(rainGain).connect(bus);
     rain.start();
 
-    nodes = { bus, voices, tension, tensionGain, lfo, rain, rainGain, droneFilter };
+    nodes = { bus, voices, tension, tensionGain, lfo, rain, rainGain, droneFilter, epicGain, epicVoices };
 
     bus.gain.setTargetAtTime(1, ctx.currentTime, 2.5); // entrada suave
     scheduleDrum();
@@ -188,6 +212,39 @@ export function createMusic(engine) {
     );
   }
 
+  // Fase da trilha: 'calm' (início), 'tense' (xeque), 'epic' (reta final).
+  // As transições são por crossfade (setTargetAtTime), nunca cortes secos.
+  function setPhase(next) {
+    if (next !== 'calm' && next !== 'tense' && next !== 'epic') return;
+    phase = next;
+    if (!nodes || !engine.ctx) return;
+    const now = engine.ctx.currentTime;
+    const tense = phase === 'tense';
+    const epic = phase === 'epic';
+
+    if (nodes.fromSample) {
+      // Sobre um arquivo: o clima é dado pelo brilho do filtro.
+      const cutoff = tense ? 1800 : epic ? 12000 : 12000 - intensity * 9000;
+      nodes.droneFilter.frequency.setTargetAtTime(cutoff, now, 1.5);
+      return;
+    }
+
+    // Crossfade da camada épica.
+    nodes.epicGain.gain.setTargetAtTime(epic ? 0.6 : 0, now, 2.2);
+    // Voz dissonante sobe no xeque e fica média no épico.
+    nodes.tensionGain.gain.setTargetAtTime(
+      tense ? 0.3 : epic ? 0.16 : intensity * 0.12,
+      now,
+      tense ? 0.4 : 2,
+    );
+    // Filtro do bordão: fecha na tensão, abre no épico.
+    nodes.droneFilter.frequency.setTargetAtTime(
+      tense ? 190 : epic ? 520 : 420 - intensity * 190,
+      now,
+      tense ? 0.4 : 2,
+    );
+  }
+
   function setRain(value) {
     rainLevel = Math.min(1, Math.max(0, value));
     if (!nodes || !engine.ctx) return;
@@ -206,6 +263,7 @@ export function createMusic(engine) {
     const dying = nodes;
     setTimeout(() => {
       dying.voices.forEach(({ osc }) => osc.stop());
+      dying.epicVoices?.forEach((osc) => osc.stop());
       dying.tension?.stop();
       dying.lfo?.stop();
       dying.source?.stop();
@@ -215,5 +273,15 @@ export function createMusic(engine) {
     nodes = null;
   }
 
-  return { start, stop, setIntensity, setRain, setAlert, get playing() { return !!nodes; } };
+  return {
+    start,
+    stop,
+    setIntensity,
+    setRain,
+    setAlert,
+    setPhase,
+    get playing() {
+      return !!nodes;
+    },
+  };
 }
