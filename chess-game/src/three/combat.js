@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WHITE } from '../chess/moveGen.js';
+import { walkTo } from './pieceAnimator.js';
 import {
   animate,
   wait,
@@ -355,11 +356,16 @@ async function attackBishop(ctx) {
   await animate(260, (t) => beam.fade(t));
   beam.dispose();
 
-  // Desliza até a casa, sem pulo: o bispo flutua.
-  await animate(340, (t) => {
-    setXZ(mesh, from, to, easeInOut(t));
-    mesh.position.y = 0.14 * (1 - easeInOut(t));
-  });
+  // Vai até a casa: caminhando, se o modelo tiver pernas; senão, flutuando.
+  const walk = walkTo(mesh, to);
+  if (walk) {
+    await walk;
+  } else {
+    await animate(340, (t) => {
+      setXZ(mesh, from, to, easeInOut(t));
+      mesh.position.y = 0.14 * (1 - easeInOut(t));
+    });
+  }
   mesh.position.y = 0;
 }
 

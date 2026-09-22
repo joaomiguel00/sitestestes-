@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WHITE } from '../chess/moveGen.js';
-import { hasPawnModel, makePawnFromGLB } from './pieceGLB.js';
+import { hasPieceModel, makePieceFromGLB } from './pieceGLB.js';
 
 // Estilo único das duas facções, seguindo a arte de referência:
 // obsidiana preta fosca e facetada, rachaduras de energia interna,
@@ -600,9 +600,10 @@ export function applyVeteranMark(piece, kills) {
 }
 
 export function createPieceMesh(type, color) {
-  // O peão usa o modelo .glb quando ele já foi carregado; senão, o procedural.
-  const model =
-    type === 'p' && hasPawnModel() ? makePawnFromGLB(color) : BUILDERS[type](createMaterials(color));
+  // Peças com modelo .glb carregado usam o modelo; as demais, o procedural.
+  const model = hasPieceModel(type)
+    ? makePieceFromGLB(type, color)
+    : BUILDERS[type](createMaterials(color));
 
   model.traverse((obj) => {
     if (obj.isMesh) {

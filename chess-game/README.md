@@ -109,7 +109,9 @@ src/
     setup.js     zonas, validações e utilidades da montagem customizada
   three/       camada 3D
     boardScene.js  cena, luzes, tabuleiro, OrbitControls
-    pieceModels.js modelos low poly de cada peça
+    pieceModels.js modelos low poly de cada peça (fallback procedural)
+    pieceGLB.js    modelos .glb embutidos (peão, bispo), cores dos exércitos
+    pieceAnimator.js caminhada procedural de peças com partes nomeadas
     highlights.js  marcadores de seleção/lances/xeque
     cameraRig.js   giro de câmera por turno
     cinematic.js   câmera lenta e aproximação nas capturas
@@ -131,6 +133,24 @@ src/
   debug.js     montador de cenas de captura para conferir animações
   main.js      fluxo de telas (menu, montagem, revelação, partida)
 ```
+
+## Modelos .glb e caminhada
+
+Peças com modelo `.glb` ficam embutidas em base64 (`src/three/*Data.js`), já que o
+host do artifact não serve `.glb`. O bispo é gerado por `tools/create_bishop_glb.py`
+(precisa de `numpy` e `trimesh`); depois de rodar, regenere `bishopData.js` a partir
+de `public/models/bishop.glb`.
+
+Qualquer modelo cujas partes sigam esta nomenclatura caminha sozinho ao se mover
+(pernas alternadas, braços opostos, balanço, inclinação e giro para a direção do
+lance); modelos sem essas partes apenas deslizam:
+
+| Parte | Nomes aceitos |
+|---|---|
+| Pernas | `Leg_L`, `Leg_R` (com `Foot_L`, `Foot_R` acompanhando) |
+| Braços | `Arm_L` / `Arm_L_Bent`, `Arm_R` / `Arm_R_Bent` (com `Hand_L`, `Hand_R`) |
+| Ombros (junta do braço, opcional) | `Shoulder_L`, `Shoulder_R` |
+| Itens na mão | esquerda: `Holy_Orb`, `Orb`, `Shield`; direita: `Staff`, `Staff_Gem`, `Sword`, `Weapon` |
 
 ## Usando seus próprios arquivos de som
 

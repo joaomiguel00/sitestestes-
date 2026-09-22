@@ -3,7 +3,7 @@ import { WHITE, BLACK } from './chess/moveGen.js';
 import { ChessGame, createStandardBoard, STATUS } from './chess/game.js';
 import { mergeBoards, kingIsInCheck } from './chess/setup.js';
 import { GameView } from './three/gameView.js';
-import { preloadPawnModel } from './three/pieceGLB.js';
+import { preloadPieceModels } from './three/pieceGLB.js';
 import { renderSetupUI } from './ui/setupUI.js';
 import { createChat } from './ui/chat.js';
 import { createClock, formatClock } from './clock.js';
@@ -322,8 +322,8 @@ async function launchMatch(board, withReveal) {
   resetUI({ interactive: false });
   canvasContainer.style.display = 'block';
 
-  // Garante o modelo .glb do peão carregado antes de montar as peças.
-  await preloadPawnModel();
+  // Garante os modelos .glb carregados antes de montar as peças.
+  await preloadPieceModels();
 
   audio.startMusic();
 
@@ -632,7 +632,7 @@ function askPromotion() {
 
 document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 
-// Começa a carregar o modelo do peão desde já (é rápido; a partida espera se preciso).
-preloadPawnModel();
+// Começa a carregar os modelos .glb desde já (é rápido; a partida espera se preciso).
+preloadPieceModels();
 
 showStartMenu();

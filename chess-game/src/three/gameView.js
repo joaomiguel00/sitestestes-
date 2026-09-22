@@ -12,6 +12,7 @@ import { createReplay, scoreMoment, pickHighlights } from './replay.js';
 import { applyIdleMotion, idlePhase } from './idleMotion.js';
 import { applyVeteranMark } from './pieceModels.js';
 import { createVictoryScene } from './victoryScene.js';
+import { walkTo } from './pieceAnimator.js';
 import { animate, easeInOut, easeOutBack, wait, setTimeScale } from './animation.js';
 import { cloneBoard, findKing, other } from '../chess/moveGen.js';
 import { STATUS, ChessGame } from '../chess/game.js';
@@ -647,6 +648,10 @@ export class GameView {
   }
 
   _animateSlide(mesh, target, duration = 360) {
+    // Peças com pernas/braços nomeados caminham; as outras deslizam.
+    const walk = walkTo(mesh, target);
+    if (walk) return walk;
+
     const start = mesh.position.clone();
     return animate(duration, (t) => {
       // Deslocamento horizontal com leve ultrapassagem no fim: a peça
