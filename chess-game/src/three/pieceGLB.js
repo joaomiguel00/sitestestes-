@@ -11,12 +11,14 @@ function base64ToArrayBuffer(b64) {
   return bytes.buffer;
 }
 
-// Carrega o modelo .glb do peão uma vez e o clona por peça. O modelo vem em
-// unidades próprias (~1,725 de altura); reduzimos para casar com a altura do
-// peão procedural (~0,94) antes do PIECE_SCALE aplicado em createPieceMesh.
-const GLB_HEIGHT = 1.725;
+// Carrega o modelo .glb do peão uma vez e o clona por peça. Este modelo é
+// Z-up (altura no eixo Z, ~1,28); giramos para Y-up e reduzimos para casar
+// com a altura do peão procedural (~0,94) antes do PIECE_SCALE.
+const GLB_HEIGHT = 1.282;
 const TARGET_HEIGHT = 0.94;
 const INNER_SCALE = TARGET_HEIGHT / GLB_HEIGHT;
+// Tom escuro do exército da Ruína (multiplica a textura base).
+const RUIN_TINT = 0x4a4658;
 
 let template = null;
 let loading = null;
@@ -50,18 +52,6 @@ export function hasPawnModel() {
   return !!template;
 }
 
-// Escurece os materiais claros para o exército da Ruína, preservando o ouro.
-function recolorForRuin(material) {
-  const name = material.name || '';
-  if (/gold/i.test(name)) {
-    material.color.multiplyScalar(0.7); // ouro mais fosco
-    return;
-  }
-  material.color.setHex(0x1b1922); // obsidiana
-  material.metalness = Math.min(material.metalness ?? 0.3, 0.25);
-  material.roughness = Math.max(material.roughness ?? 0.5, 0.7);
-}
-
 export function makePawnFromGLB(color) {
   if (!template) return null;
   const isOrder = color === WHITE;
@@ -75,12 +65,16 @@ export function makePawnFromGLB(color) {
     const source = Array.isArray(obj.material) ? obj.material : [obj.material];
     const cloned = source.map((m) => {
       const mat = m.clone();
-      if (!isOrder) recolorForRuin(mat);
+      // Modelo texturizado: a Ordem fica clara; a Ruína recebe um tom escuro
+      // que multiplica a textura base.
+      if (!isOrder && mat.color) mat.color.setHex(RUIN_TINT);
       return mat;
     });
     obj.material = cloned.length === 1 ? cloned[0] : cloned;
   });
 
+  // Z-up -> Y-up: gira -90° em X para o boneco ficar em pé, base no chão.
+  model.rotation.x = -Math.PI / 2;
   model.scale.setScalar(INNER_SCALE);
 
   // Invólucro interno de escala 1: o createPieceMesh aplica o PIECE_SCALE aqui.
