@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WHITE } from '../chess/moveGen.js';
+import { PAWN_GLB_BASE64 } from './pawnData.js';
+
+// Decodifica base64 para ArrayBuffer (o modelo vem embutido no bundle).
+function base64ToArrayBuffer(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
 
 // Carrega o modelo .glb do peão uma vez e o clona por peça. O modelo vem em
 // unidades próprias (~1,725 de altura); reduzimos para casar com a altura do
@@ -12,22 +21,27 @@ const INNER_SCALE = TARGET_HEIGHT / GLB_HEIGHT;
 let template = null;
 let loading = null;
 
-export function preloadPawnModel(file = 'models/pawn.glb') {
+export function preloadPawnModel() {
   if (loading) return loading;
-  const base = import.meta.env.BASE_URL ?? '/';
   loading = new Promise((resolve) => {
-    new GLTFLoader().load(
-      `${base}${file}`,
-      (gltf) => {
-        template = gltf.scene;
-        resolve(template);
-      },
-      undefined,
-      (err) => {
-        console.warn('[glb] peão não carregou; usando modelo procedural.', err);
-        resolve(null);
-      },
-    );
+    try {
+      const buffer = base64ToArrayBuffer(PAWN_GLB_BASE64);
+      new GLTFLoader().parse(
+        buffer,
+        '',
+        (gltf) => {
+          template = gltf.scene;
+          resolve(template);
+        },
+        (err) => {
+          console.warn('[glb] peão não carregou; usando modelo procedural.', err);
+          resolve(null);
+        },
+      );
+    } catch (err) {
+      console.warn('[glb] peão não carregou; usando modelo procedural.', err);
+      resolve(null);
+    }
   });
   return loading;
 }
