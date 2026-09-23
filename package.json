@@ -1,0 +1,12 @@
+{
+  "name": "war-of-chess",
+  "private": true,
+  "description": "Deploy do War of Chess: compila chess-game e serve com server.js",
+  "scripts": {
+    "build": "npm --prefix chess-game ci --include=dev && npm --prefix chess-game run build",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

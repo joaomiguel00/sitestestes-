@@ -18,6 +18,15 @@ npm run build    # gera a versão de produção em dist/
 npm run preview  # serve o build de produção
 ```
 
+## Deploy (Railway)
+
+A raiz do repositório já vem pronta para o Railway (`package.json`, `railway.json`
+e `server.js`): o build roda `npm run build` (instala e compila `chess-game`) e o
+start sobe `server.js`, um servidor estático sem dependências que usa a porta da
+variável `PORT`. Ele serve o jogo em `/` e o site institucional da raiz em `/site/`;
+nada fora dessas pastas (como `.git`) é exposto. No Railway, o serviço precisa
+apontar para a branch que contém o jogo.
+
 ## O que já está implementado
 
 **Regras completas de xadrez**
