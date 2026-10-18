@@ -1,0 +1,1 @@
+Fotos dos sócios (ex.: isaac.jpg). Depois preencha o campo foto em src/content/textos.ts.
