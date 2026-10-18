@@ -9,6 +9,7 @@ import { Revelar } from "@/components/Revelar";
 import { SetaIcone } from "@/components/Seta";
 import { isVideo, projetos } from "@/content/projetos";
 import { dimensoes } from "@/lib/imagens";
+import { basePath, midia } from "@/lib/caminho";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -26,8 +27,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return {
     title: p.titulo,
     description: descricao,
-    alternates: { canonical: `/trabalhos/${p.slug}` },
-    openGraph: { title: `${p.titulo} · Swipe Digital`, description: descricao, images: [{ url: p.capa }] },
+    alternates: { canonical: `${basePath}/trabalhos/${p.slug}` },
+    openGraph: { title: `${p.titulo} · Swipe Digital`, description: descricao, images: [{ url: midia(p.capa) }] },
   };
 }
 
@@ -49,7 +50,7 @@ export default async function PaginaProjeto({ params }: Params) {
 
           <div className="relative mt-6 overflow-hidden rounded-[32px] border border-white/8">
             <div className="relative aspect-[4/3] sm:aspect-[16/9] lg:aspect-[21/9]">
-              <Image src={p.capa} alt={`Capa do projeto ${p.titulo}`} fill priority sizes="100vw" className="object-cover" style={{ viewTransitionName: nomeTransicao(p.slug) }} />
+              <Image src={midia(p.capa)} alt={`Capa do projeto ${p.titulo}`} fill priority sizes="100vw" className="object-cover" style={{ viewTransitionName: nomeTransicao(p.slug) }} />
               <div className="absolute inset-0 bg-gradient-to-t from-preto/90 via-transparent to-transparent" aria-hidden="true" />
             </div>
             {p.tipo === "conceito" && <EtiquetaConceito className="absolute top-5 left-5" />}
@@ -102,7 +103,7 @@ export default async function PaginaProjeto({ params }: Params) {
             <div className="mt-8 columns-1 gap-3 sm:columns-2 sm:gap-4 lg:columns-3">
               {p.video && (
                 <Revelar className="mb-3 break-inside-avoid sm:mb-4">
-                  <video src={p.video} poster={p.capa} controls muted loop playsInline preload="none" className="w-full rounded-[24px] border border-white/8 bg-grafite">
+                  <video src={midia(p.video)} poster={midia(p.capa)} controls muted loop playsInline preload="none" className="w-full rounded-[24px] border border-white/8 bg-grafite">
                     Vídeo do projeto {p.titulo}
                   </video>
                 </Revelar>
@@ -110,10 +111,10 @@ export default async function PaginaProjeto({ params }: Params) {
               {p.galeria.map((src, n) => (
                 <Revelar key={src} className="mb-3 break-inside-avoid sm:mb-4" atraso={(n % 3) * 0.08}>
                   {isVideo(src) ? (
-                    <video src={src} poster={p.capa} controls muted loop playsInline preload="none" className="w-full rounded-[24px] border border-white/8 bg-grafite" />
+                    <video src={midia(src)} poster={midia(p.capa)} controls muted loop playsInline preload="none" className="w-full rounded-[24px] border border-white/8 bg-grafite" />
                   ) : (
                     <Image
-                      src={src}
+                      src={midia(src)}
                       alt={`${p.titulo}: imagem ${n + 1} da galeria`}
                       {...dimensoes(src)}
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
@@ -136,7 +137,7 @@ export default async function PaginaProjeto({ params }: Params) {
                 className={`group vidro flex items-center gap-4 p-4 sm:p-5 ${esq ? "" : "sm:flex-row-reverse sm:text-right"}`}
               >
                 <span className="relative h-16 w-20 shrink-0 overflow-hidden rounded-2xl">
-                  <Image src={proj.capa} alt="" fill sizes="80px" className="object-cover" />
+                  <Image src={midia(proj.capa)} alt="" fill sizes="80px" className="object-cover" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-cinza">{rotulo}</span>

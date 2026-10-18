@@ -9,6 +9,7 @@ import { Logo } from "./Logo";
 import { SetaIcone } from "./Seta";
 import { ease } from "@/config/motion";
 import { linkWhatsapp, site } from "@/config/site";
+import { basePath } from "@/lib/caminho";
 
 const itens = [
   { id: "trabalhos", rotulo: "Trabalhos" },
@@ -83,7 +84,7 @@ export function Header() {
     return () => window.removeEventListener("keydown", esc);
   }, [aberto, lenis]);
 
-  const href = (id: string) => (naHome ? `#${id}` : `/#${id}`);
+  const href = (id: string) => (naHome ? `#${id}` : `${basePath}/#${id}`);
 
   return (
     <>

@@ -78,6 +78,18 @@ o site sem abertura, parallax ou letreiro correndo.
 5. Clique em **Deploy**. Cada novo push na branch principal publica de novo.
 6. Para usar seu domínio: **Settings → Domains**, e atualize `url` em `src/config/site.ts`.
 
+## 6. GitHub Pages (hospedagem grátis no próprio repositório)
+
+O workflow `.github/workflows/pages.yml` gera o site estático e publica em
+`https://joaomiguel00.github.io/sitestestes-/` a cada push que mexe em `swipe-digital/`.
+
+Uma vez só, no GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Se o deploy for barrado por regra de ambiente, em **Settings → Environments → github-pages**
+libere a branch usada (ou junte o site na branch padrão).
+
+Para testar a versão do Pages no computador:
+`GITHUB_PAGES=1 PAGES_BASE_PATH=/sitestestes- npm run build` (gera a pasta `out/`).
+
 ## Estrutura
 
 ```

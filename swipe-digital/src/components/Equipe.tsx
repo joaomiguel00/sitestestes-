@@ -2,13 +2,14 @@ import Image from "next/image";
 import { equipe } from "@/content/textos";
 import { CardVidro } from "./CardVidro";
 import { Revelar, TituloSecao } from "./Revelar";
+import { midia } from "@/lib/caminho";
 
 export function Iniciais({ nome, foto, tamanho = "lg" }: { nome: string; foto?: string; tamanho?: "sm" | "lg" }) {
   const classe = tamanho === "lg" ? "h-24 w-24 text-3xl" : "h-11 w-11 text-sm";
   if (foto)
     return (
       <span className={`relative block shrink-0 overflow-hidden rounded-full ring-2 ring-roxo/60 ${classe}`}>
-        <Image src={foto} alt={`Foto de ${nome}`} fill sizes="96px" className="object-cover" />
+        <Image src={midia(foto)} alt={`Foto de ${nome}`} fill sizes="96px" className="object-cover" />
       </span>
     );
   return (

@@ -2,7 +2,7 @@
 
 export const site = {
   nome: "Swipe Digital",
-  url: "https://swipedigital.com.br", // [SUBSTITUIR] domínio final
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://swipedigital.com.br", // [SUBSTITUIR] domínio final
   descricao:
     "Agência de marketing digital: site, posts, vídeos com IA e anúncios para pequenos negócios. Veja o que a gente já criou.",
 

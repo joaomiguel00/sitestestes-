@@ -29,7 +29,7 @@ const spaceGrotesk = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(site.url),
+  metadataBase: new URL(new URL(site.url).origin),
   title: { default: "Swipe Digital · Seu negócio no feed de quem compra", template: "%s · Swipe Digital" },
   description: site.descricao,
   openGraph: {

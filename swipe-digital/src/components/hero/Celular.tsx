@@ -7,6 +7,7 @@ import { projetosEmDestaque } from "@/content/projetos";
 import { motionConfig } from "@/config/motion";
 import { useMenosMovimento, usePonteiroFino } from "@/lib/hooks";
 import { SetaSublinhado } from "../Seta";
+import { midia } from "@/lib/caminho";
 
 /** Peças de marca que aparecem no feed, entre as capas dos projetos. */
 function PostMarca({ tipo }: { tipo: number }) {
@@ -42,7 +43,7 @@ function ItensFeed() {
   projetosEmDestaque.forEach((p, i) => {
     itens.push(
       <div key={p.slug} className="overflow-hidden rounded-2xl">
-        <Image src={p.capa} alt="" width={320} height={240} sizes="240px" className="aspect-[4/5] w-full object-cover" />
+        <Image src={midia(p.capa)} alt="" width={320} height={240} sizes="240px" className="aspect-[4/5] w-full object-cover" />
       </div>,
     );
     itens.push(<PostMarca key={`m${i}`} tipo={i % 3} />);

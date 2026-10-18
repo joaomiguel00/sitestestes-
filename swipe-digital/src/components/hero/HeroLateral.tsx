@@ -11,6 +11,7 @@ import { useMenosMovimento } from "@/lib/hooks";
 import { CardVidro } from "../CardVidro";
 import { Botao } from "../Botao";
 import { IconeChevron, IconePause, IconePlay } from "../Icones";
+import { midia } from "@/lib/caminho";
 
 const dois = (n: number) => String(n).padStart(2, "0");
 
@@ -78,7 +79,7 @@ export function CarrosselDestaques() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
               >
-                <Image src={p.capa} alt={`Capa do projeto ${p.titulo}`} fill loading="eager" sizes="(min-width: 1024px) 280px, 80vw" className="object-cover" />
+                <Image src={midia(p.capa)} alt={`Capa do projeto ${p.titulo}`} fill loading="eager" sizes="(min-width: 1024px) 280px, 80vw" className="object-cover" />
               </motion.div>
             </AnimatePresence>
           </div>

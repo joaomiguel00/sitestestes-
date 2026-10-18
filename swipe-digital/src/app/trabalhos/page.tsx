@@ -3,11 +3,12 @@ import { Galeria } from "@/components/galeria/Galeria";
 import { TituloSecao } from "@/components/Revelar";
 import { Contato } from "@/components/Contato";
 import { projetos } from "@/content/projetos";
+import { basePath } from "@/lib/caminho";
 
 export const metadata: Metadata = {
   title: "Trabalhos",
   description: "Portfólio da Swipe Digital: sites, posts, vídeos com IA e tráfego pago para pequenos negócios.",
-  alternates: { canonical: "/trabalhos" },
+  alternates: { canonical: `${basePath}/trabalhos` },
 };
 
 export default function Trabalhos() {

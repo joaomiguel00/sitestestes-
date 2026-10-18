@@ -7,6 +7,7 @@ import type { Projeto } from "@/content/projetos";
 import { usePonteiroFino } from "@/lib/hooks";
 import { IconePause, IconePlay } from "../Icones";
 import { EtiquetaConceito, nomeTransicao } from "./comum";
+import { midia } from "@/lib/caminho";
 
 export function CardProjeto({
   projeto: p,
@@ -43,7 +44,7 @@ export function CardProjeto({
       <Link href={`/trabalhos/${p.slug}`} className="block h-full rounded-[28px]" data-cursor="ver">
         <div className={`relative overflow-hidden ${altura}`}>
           <Image
-            src={p.capa}
+            src={midia(p.capa)}
             alt={`Capa do projeto ${p.titulo}`}
             fill
             priority={prioridade}
@@ -54,12 +55,12 @@ export function CardProjeto({
           {p.video && (
             <video
               ref={video}
-              src={p.video}
+              src={midia(p.video)}
               muted
               loop
               playsInline
               preload="none"
-              poster={p.capa}
+              poster={midia(p.capa)}
               aria-hidden="true"
               className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${tocando ? "opacity-100" : "opacity-0"}`}
             />

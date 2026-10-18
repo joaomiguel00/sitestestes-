@@ -5,6 +5,7 @@ import { Botao } from "./Botao";
 import { CardVidro } from "./CardVidro";
 import { Iniciais } from "./Equipe";
 import { Revelar } from "./Revelar";
+import { midia } from "@/lib/caminho";
 
 export function Bento() {
   const socio = equipe.find((e) => e.nome === fraseSocio.nome) ?? equipe[0];
@@ -16,7 +17,7 @@ export function Bento() {
           <CardVidro className="h-full overflow-hidden p-0" glow>
             <div className="relative h-full min-h-[420px]">
               <Image
-                src="/bastidores.jpg"
+                src={midia("/bastidores.jpg")}
                 alt="Foto da equipe da Swipe Digital (imagem de exemplo)"
                 fill
                 sizes="(min-width: 1024px) 58vw, 100vw"
